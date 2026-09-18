@@ -15,9 +15,6 @@ export default function HomePage() {
               <span className="font-bold font-display text-foreground text-xl tracking-tight">
                 GridWise
               </span>
-              <span className="rounded bg-primary/20 px-1.5 py-0.5 font-mono font-semibold text-[10px] text-primary">
-                v2.0
-              </span>
             </div>
             <p className="text-muted-foreground text-xs">
               Campus Microgrid Energy Optimization & Dispatch Control Room

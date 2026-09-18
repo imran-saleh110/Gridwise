@@ -4,18 +4,21 @@
   "private": true,
   "type": "module",
   "exports": {
+    ".": "./src/index.ts",
     "./domain": "./src/domain/index.ts",
-    "./schema": "./src/schema/index.ts",
     "./errors": "./src/errors/index.ts",
     "./interpreter": "./src/interpreter/index.ts",
+    "./schema": "./src/schema/index.ts",
     "./service": "./src/service/index.ts"
   },
   "scripts": {
+    "clean": "rm -rf .turbo",
     "lint": "biome check .",
     "test": "bun test --pass-with-no-tests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "highs": "^1.15.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {

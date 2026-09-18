@@ -55,10 +55,6 @@ export function setOptimizeEnergyService(service: OptimizeEnergyService): void {
   activeService = service;
 }
 
-export function getOptimizeEnergyService(): OptimizeEnergyService {
-  return activeService;
-}
-
 /**
  * Route handler for POST /optimize-energy
  */
