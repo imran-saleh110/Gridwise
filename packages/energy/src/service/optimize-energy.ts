@@ -11,10 +11,10 @@ import type { DirectiveInterpreter } from "../interpreter/interpreter.ts";
  * Takes the scenario and interpreted directives, and solves for the optimal schedule.
  */
 export interface EnergyOptimizer {
-  optimize(
+  optimize: (
     scenario: Scenario,
-    directives: readonly DirectiveInterpretation[],
-  ): Promise<OptimizationPlan>;
+    directives: readonly DirectiveInterpretation[]
+  ) => Promise<OptimizationPlan>;
 }
 
 /**
@@ -24,11 +24,11 @@ export interface EnergyOptimizer {
  * the verified/recalculated OptimizationPlan.
  */
 export interface ScheduleValidator {
-  validate(
+  validate: (
     scenario: Scenario,
     plan: OptimizationPlan,
-    directives: readonly DirectiveInterpretation[],
-  ): Promise<OptimizationPlan | void>;
+    directives: readonly DirectiveInterpretation[]
+  ) => Promise<OptimizationPlan | undefined>;
 }
 
 /**
@@ -56,19 +56,23 @@ export interface OptimizeEnergyServiceDependencies {
  * OptimizationError, ScheduleValidationError, etc.) is propagated without suppression.
  */
 export class OptimizeEnergyService {
-  constructor(private readonly deps: OptimizeEnergyServiceDependencies) {}
+  private readonly deps: OptimizeEnergyServiceDependencies;
+
+  constructor(deps: OptimizeEnergyServiceDependencies) {
+    this.deps = deps;
+  }
 
   async execute(scenario: Scenario): Promise<OptimizationResponse> {
     // Step 1: Interpret operator notes into machine-checkable directives
     const directiveInterpretations = await this.deps.interpreter.interpret(
       scenario.operator_notes,
-      scenario,
+      scenario
     );
 
     // Step 2: Solve the 24-hour energy optimization problem
     const rawPlan = await this.deps.optimizer.optimize(
       scenario,
-      directiveInterpretations,
+      directiveInterpretations
     );
 
     // Step 3: Independently validate and verify the schedule
@@ -76,18 +80,18 @@ export class OptimizeEnergyService {
       (await this.deps.validator.validate(
         scenario,
         rawPlan,
-        directiveInterpretations,
+        directiveInterpretations
       )) ?? rawPlan;
 
     // Step 4: Construct the flat canonical challenge response
     return {
-      scenario_id: scenario.scenario_id,
       directive_interpretation: directiveInterpretations,
       hourly_plan: validatedPlan.hourly_plan,
-      total_grid_kwh: validatedPlan.total_grid_kwh,
-      total_cost_bdt: validatedPlan.total_cost_bdt,
       peak_grid_kwh: validatedPlan.peak_grid_kwh,
       plan_summary: validatedPlan.plan_summary,
+      scenario_id: scenario.scenario_id,
+      total_cost_bdt: validatedPlan.total_cost_bdt,
+      total_grid_kwh: validatedPlan.total_grid_kwh,
     };
   }
 }

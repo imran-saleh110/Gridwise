@@ -17,7 +17,9 @@ export type {
   SolarReductionAdjustment,
   SolarReductionInterpretation,
 } from "./directive.ts";
+
 export { DIRECTIVE_TYPES } from "./directive.ts";
+
 export type {
   BatteryAction,
   HourlyPlanEntry,

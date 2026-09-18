@@ -1,9 +1,9 @@
 import { trpcServer } from "@hono/trpc-server";
+import { EnergyAppError } from "@repo/energy/errors";
 import { appRouter } from "@repo/trpc/server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { EnergyAppError } from "@repo/energy/errors";
 import { healthRoutes } from "./routes/health.ts";
 import { optimizeEnergyRoutes } from "./routes/optimize-energy.ts";
 

@@ -4,6 +4,7 @@ entry = [
   "packages/trpc/src/index.{ts,tsx}",
   "packages/trpc/src/server/index.{ts,tsx}",
   "packages/db/src/index.{ts,tsx}",
+  "packages/energy/src/index.{ts,tsx}",
   "packages/ui/src/components/**/*.{ts,tsx}",
 ]
 
