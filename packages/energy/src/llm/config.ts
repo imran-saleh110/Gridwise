@@ -19,8 +19,8 @@ export const llmEnvSchema = z.object({
   LLM_BASE_URL: z.string().url().default("https://api.groq.com/openai/v1"),
   /** Maximum number of transport-level retries (network / 5xx / 429) per request. */
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(10).default(2),
-  /** Model identifier to call on Groq. Defaults to Llama 3.3 70B Versatile. */
-  LLM_MODEL: z.string().min(1).default("llama-3.3-70b-versatile"),
+  /** Model identifier to call on Groq. Defaults to openai/gpt-oss-120b. */
+  LLM_MODEL: z.string().min(1).default("openai/gpt-oss-120b"),
   /** Structured-output strategy: json_object (prompt-enforced with JSON mode) or json_schema. */
   LLM_RESPONSE_MODE: z
     .enum(["json_schema", "json_object"])
