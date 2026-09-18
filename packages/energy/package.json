@@ -3,6 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+<<<<<<< HEAD
   "main": "./src/index.ts",
   "types": "./src/index.ts"
+=======
+  "exports": {
+    "./domain": "./src/domain/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./errors": "./src/errors/index.ts",
+    "./interpreter": "./src/interpreter/index.ts",
+    "./service": "./src/service/index.ts"
+  },
+  "scripts": {
+    "lint": "biome check .",
+    "test": "bun test --pass-with-no-tests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^5.9.3"
+  }
+>>>>>>> Farhana
 }
