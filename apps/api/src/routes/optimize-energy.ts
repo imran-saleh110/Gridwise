@@ -1,6 +1,6 @@
 import {
-  EnergyAppError,
   InvalidScenarioError,
+  isEnergyAppError,
   LLMProviderError,
 } from "@repo/energy/errors";
 import {
@@ -53,14 +53,14 @@ const defaultValidator: ScheduleValidator = new IndependentScheduleValidator();
 let activeService: OptimizeEnergyService | null = null;
 
 function getActiveService(): OptimizeEnergyService {
-  if (!activeService) {
-    activeService = new OptimizeEnergyService({
-      interpreter: createProductionInterpreter(),
-      optimizer: createProductionOptimizer(),
-      validator: defaultValidator,
-    });
+  if (activeService) {
+    return activeService;
   }
-  return activeService;
+  return new OptimizeEnergyService({
+    interpreter: createProductionInterpreter(),
+    optimizer: createProductionOptimizer(),
+    validator: defaultValidator,
+  });
 }
 
 /**
@@ -122,11 +122,12 @@ async function handleOptimizeEnergy(c: Context) {
       200
     );
   } catch (err: unknown) {
-    if (err instanceof EnergyAppError) {
+    if (isEnergyAppError(err)) {
       const pub = err.toPublicResponse();
       return c.json({ error: pub }, pub.status as 422 | 500);
     }
 
+    console.error("[OptimizeEnergy Unexpected Error]", err);
     return c.json(
       {
         error: {

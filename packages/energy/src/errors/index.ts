@@ -32,6 +32,21 @@ export abstract class EnergyAppError extends Error {
 }
 
 /**
+ * Type guard to reliably detect EnergyAppError instances across package boundaries.
+ */
+export function isEnergyAppError(err: unknown): err is EnergyAppError {
+  return (
+    err instanceof EnergyAppError ||
+    (typeof err === "object" &&
+      err !== null &&
+      "publicMessage" in err &&
+      "status" in err &&
+      "code" in err &&
+      typeof (err as EnergyAppError).toPublicResponse === "function")
+  );
+}
+
+/**
  * 422 Unprocessable Entity
  * Thrown when the scenario payload fails schema validation, contains invalid hour ranges,
  * impossible battery configurations, or missing required fields.
