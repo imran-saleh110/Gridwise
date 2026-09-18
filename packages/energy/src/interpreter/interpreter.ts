@@ -6,7 +6,7 @@ import type { Scenario } from "../domain/scenario.ts";
  */
 export type InterpretDirectivesFn = (
   notes: readonly string[],
-  scenario: Scenario,
+  scenario: Scenario
 ) => Promise<DirectiveInterpretation[]>;
 
 /**
@@ -25,8 +25,8 @@ export interface DirectiveInterpreter {
    * @param scenario - The 24-hour scenario context.
    * @returns Exactly one DirectiveInterpretation per note, ordered by note_index (0..N-1).
    */
-  interpret(
+  interpret: (
     notes: readonly string[],
-    scenario: Scenario,
-  ): Promise<DirectiveInterpretation[]>;
+    scenario: Scenario
+  ) => Promise<DirectiveInterpretation[]>;
 }

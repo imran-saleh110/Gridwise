@@ -3,15 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-<<<<<<< HEAD
-  "main": "./src/index.ts",
-  "types": "./src/index.ts"
-=======
   "exports": {
+    ".": "./src/index.ts",
     "./domain": "./src/domain/index.ts",
     "./schema": "./src/schema/index.ts",
     "./errors": "./src/errors/index.ts",
     "./interpreter": "./src/interpreter/index.ts",
+    "./directives": "./src/directives/index.ts",
+    "./llm": "./src/llm/index.ts",
     "./service": "./src/service/index.ts"
   },
   "scripts": {
@@ -26,5 +25,4 @@
     "@types/bun": "^1.4.2",
     "typescript": "^5.9.3"
   }
->>>>>>> Farhana
 }

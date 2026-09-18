@@ -1,0 +1,41 @@
+import { z } from "zod";
+
+/**
+ * Environment configuration for the LLM directive interpreter.
+ *
+ * Read from server-side environment variables only (`LLM_*` — never
+ * `NEXT_PUBLIC_*`). The API key stays on the server and is never logged or
+ * returned to clients.
+ *
+ * Defaults target Grok on the xAI API (an OpenAI-compatible Chat Completions
+ * endpoint). Point `LLM_BASE_URL` at Groq, DeepSeek, OpenRouter, etc. as needed.
+ */
+export const llmEnvSchema = z.object({
+  /** API key for the LLM provider (xAI key for Grok). Required to actually interpret notes. */
+  LLM_API_KEY: z.string().min(1).optional(),
+  /** Base URL of an OpenAI-compatible Chat Completions API. */
+  LLM_BASE_URL: z.string().url().default("https://api.x.ai/v1"),
+  /** Maximum number of transport-level retries (network / 5xx / 429) per request. */
+  LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(10).default(2),
+  /** Model identifier to call (Grok model released via the xAI API). */
+  LLM_MODEL: z.string().min(1).default("grok-4.6"),
+  /** Structured-output strategy: json_schema (schema-enforced) or json_object (prompt-enforced). */
+  LLM_RESPONSE_MODE: z
+    .enum(["json_schema", "json_object"])
+    .default("json_schema"),
+  /** Base backoff delay in milliseconds; doubled after each retry. */
+  LLM_RETRY_DELAY_MS: z.coerce.number().int().nonnegative().default(500),
+  /** Per-request timeout in milliseconds. */
+  LLM_TIMEOUT: z.coerce.number().int().positive().default(15_000),
+});
+
+export type LLMConfig = z.infer<typeof llmEnvSchema>;
+
+/**
+ * Parses and validates LLM environment configuration.
+ * Throws on structurally invalid values so misconfiguration fails fast at
+ * startup instead of mid-request.
+ */
+export function getLLMConfig(env: NodeJS.ProcessEnv = process.env): LLMConfig {
+  return llmEnvSchema.parse(env);
+}
