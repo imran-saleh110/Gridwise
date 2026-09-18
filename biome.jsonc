@@ -30,6 +30,7 @@
     {
       "includes": [
         "packages/db/src/repositories/index.ts",
+        "packages/energy/src/index.ts",
         "packages/trpc/src/index.ts",
         "packages/trpc/src/server/index.ts"
       ],
