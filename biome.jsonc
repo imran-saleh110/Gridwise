@@ -9,6 +9,13 @@
   "files": {
     "includes": ["!**/.agents", "!**/.codex", "!**/.opencode"]
   },
+  "linter": {
+    "rules": {
+      "performance": {
+        "noJsxPropsBind": "off"
+      }
+    }
+  },
   "overrides": [
     {
       "includes": ["**"],
@@ -35,12 +42,15 @@
       }
     },
     {
-      "includes": ["packages/ui/src/components/**"],
+      "includes": ["packages/ui/src/components/**", "apps/web/**"],
       "linter": {
         "rules": {
           "a11y": {
             "noLabelWithoutControl": "off",
             "useSemanticElements": "off"
+          },
+          "performance": {
+            "noJsxPropsBind": "off"
           },
           "suspicious": {
             "noArrayIndexKey": "off",
