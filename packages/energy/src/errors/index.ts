@@ -24,9 +24,9 @@ export abstract class EnergyAppError extends Error {
    */
   toPublicResponse(): { message: string; status: number; code: string } {
     return {
+      code: this.code,
       message: this.publicMessage,
       status: this.status,
-      code: this.code,
     };
   }
 }
@@ -42,7 +42,7 @@ export class InvalidScenarioError extends EnergyAppError {
 
   constructor(
     publicMessage = "The provided scenario is invalid or malformed.",
-    internalMessage?: string,
+    internalMessage?: string
   ) {
     super(publicMessage, internalMessage);
   }
@@ -59,7 +59,7 @@ export class DirectiveInterpretationError extends EnergyAppError {
 
   constructor(
     publicMessage = "Failed to interpret operator directives.",
-    internalMessage?: string,
+    internalMessage?: string
   ) {
     super(publicMessage, internalMessage);
   }
@@ -76,7 +76,7 @@ export class DirectiveValidationError extends EnergyAppError {
 
   constructor(
     publicMessage = "The interpreted directive violates domain rules or constraints.",
-    internalMessage?: string,
+    internalMessage?: string
   ) {
     super(publicMessage, internalMessage);
   }
@@ -93,7 +93,7 @@ export class OptimizationError extends EnergyAppError {
 
   constructor(
     publicMessage = "The energy optimization solver failed to generate a feasible schedule.",
-    internalMessage?: string,
+    internalMessage?: string
   ) {
     super(publicMessage, internalMessage);
   }
@@ -110,7 +110,7 @@ export class ScheduleValidationError extends EnergyAppError {
 
   constructor(
     publicMessage = "The generated optimization schedule failed verification against physical constraints.",
-    internalMessage?: string,
+    internalMessage?: string
   ) {
     super(publicMessage, internalMessage);
   }
@@ -127,7 +127,7 @@ export class LLMProviderError extends EnergyAppError {
 
   constructor(
     publicMessage = "An error occurred while communicating with the language model provider.",
-    internalMessage?: string,
+    internalMessage?: string
   ) {
     super(publicMessage, internalMessage);
   }

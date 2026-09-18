@@ -44,13 +44,13 @@ export type DirectiveType =
  * e.g. "80% reduction" → factor = 0.2
  */
 export interface SolarReductionAdjustment {
-  /** Hours (0–23, ascending, unique) over which the reduction applies. */
-  readonly hours: readonly number[];
   /**
    * Usable fraction of forecasted solar that remains available.
    * Must be in [0, 1].
    */
   readonly factor: number;
+  /** Hours (0–23, ascending, unique) over which the reduction applies. */
+  readonly hours: readonly number[];
 }
 
 /**
@@ -106,50 +106,55 @@ export interface MaxGridWindowAdjustment {
 
 interface DirectiveInterpretationBase {
   /**
-   * Zero-based index of the operator note this interpretation corresponds to.
-   * Must match the note's position in Scenario.operator_notes exactly.
-   */
-  readonly note_index: number;
-  /**
    * Human-readable explanation of what the LLM extracted from this note.
    * Free-text; wording does not need to match the reference output byte-for-byte.
    */
   readonly explanation: string;
+  /**
+   * Zero-based index of the operator note this interpretation corresponds to.
+   * Must match the note's position in Scenario.operator_notes exactly.
+   */
+  readonly note_index: number;
 }
 
-export interface SolarReductionInterpretation extends DirectiveInterpretationBase {
-  readonly directive_type: "solar_reduction";
+export interface SolarReductionInterpretation
+  extends DirectiveInterpretationBase {
   readonly applies: true;
+  readonly directive_type: "solar_reduction";
   readonly structured_adjustment: SolarReductionAdjustment;
 }
 
-export interface MinimumBatteryReserveInterpretation extends DirectiveInterpretationBase {
-  readonly directive_type: "minimum_battery_reserve";
+export interface MinimumBatteryReserveInterpretation
+  extends DirectiveInterpretationBase {
   readonly applies: true;
+  readonly directive_type: "minimum_battery_reserve";
   readonly structured_adjustment: MinimumBatteryReserveAdjustment;
 }
 
-export interface NoChargeWindowInterpretation extends DirectiveInterpretationBase {
-  readonly directive_type: "no_charge_window";
+export interface NoChargeWindowInterpretation
+  extends DirectiveInterpretationBase {
   readonly applies: true;
+  readonly directive_type: "no_charge_window";
   readonly structured_adjustment: NoChargeWindowAdjustment;
 }
 
-export interface NoDischargeWindowInterpretation extends DirectiveInterpretationBase {
-  readonly directive_type: "no_discharge_window";
+export interface NoDischargeWindowInterpretation
+  extends DirectiveInterpretationBase {
   readonly applies: true;
+  readonly directive_type: "no_discharge_window";
   readonly structured_adjustment: NoDischargeWindowAdjustment;
 }
 
-export interface MaxGridWindowInterpretation extends DirectiveInterpretationBase {
-  readonly directive_type: "max_grid_window";
+export interface MaxGridWindowInterpretation
+  extends DirectiveInterpretationBase {
   readonly applies: true;
+  readonly directive_type: "max_grid_window";
   readonly structured_adjustment: MaxGridWindowAdjustment;
 }
 
 export interface NoOpInterpretation extends DirectiveInterpretationBase {
-  readonly directive_type: "no_op";
   readonly applies: false;
+  readonly directive_type: "no_op";
   /** Always null for no_op, per the challenge specification. */
   readonly structured_adjustment: null;
 }
