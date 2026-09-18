@@ -1,4 +1,4 @@
-# Smart Campus Energy Optimization
+# GridWise - A Smart Campus Energy Optimization
 
 LLM-assisted energy optimization for smart campuses.
 
