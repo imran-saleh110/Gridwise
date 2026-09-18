@@ -1,0 +1,27 @@
+# Next.js Conventions
+
+- Use the Next.js App Router for new applications.
+- Prefer Server Components by default.
+- Add `"use client"` only when the component genuinely requires client-side behavior such as state, effects, event handlers, or browser APIs.
+- Keep Client Components as small and isolated as practical.
+- Fetch data in Server Components when possible.
+- Prefer server-side data fetching over fetching from the browser when the data does not require client-side interactivity.
+- Use Server Actions for mutations where appropriate.
+- Keep data fetching, mutations, and business logic on the server when possible.
+- Do not expose secrets, API keys, database credentials, or server-only logic to Client Components.
+- Use the framework's built-in caching and revalidation mechanisms rather than introducing a client-side data-fetching library without a clear need.
+- Use `loading.tsx`, `error.tsx`, and `not-found.tsx` where they improve route-level UX.
+- Use `next/image` for application images unless there is a specific reason not to.
+- Use `next/link` for internal navigation.
+- Use Next.js metadata APIs for page and layout metadata.
+- Prefer route handlers (`app/**/route.ts`) for HTTP endpoints that belong inside the Next.js application.
+- Keep route handlers thin; move reusable business logic into separate modules.
+- Organize components by feature/domain rather than creating one large global components directory.
+- Avoid unnecessary abstraction. Create reusable components when there is actual reuse or when abstraction substantially improves readability.
+- Keep components focused on rendering and composition; move complex business logic into appropriate server-side modules.
+- Prefer progressive enhancement: functionality should work without unnecessary client-side JavaScript where practical.
+- Avoid unnecessary `useEffect`. Prefer server rendering, derived values, event handlers, or framework primitives when they can accomplish the same task.
+- Avoid prop-drilling when a component can naturally obtain its data on the server or when a focused composition pattern is clearer.
+- Prefer URL/search params for state that should be shareable, bookmarkable, or survive navigation.
+- Use semantic HTML and accessible interactive elements before reaching for custom UI abstractions.
+- Follow Next.js conventions for file names and route structure rather than inventing custom routing patterns.

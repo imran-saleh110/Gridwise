@@ -1,0 +1,40 @@
+{
+  "name": "web-scaffold",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "check": "turbo run lint typecheck test build",
+    "clean": "turbo run clean",
+    "db:generate": "turbo run db:generate",
+    "db:migrate": "turbo run db:migrate",
+    "db:push": "turbo run db:push",
+    "db:studio": "turbo run db:studio",
+    "dev": "turbo run dev",
+    "dev:api": "turbo run dev --filter=@repo/api",
+    "dev:web": "turbo run dev --filter=@repo/web",
+    "fallow": "fallow",
+    "fallow:fix": "fallow fix --dry-run",
+    "fix": "ultracite fix",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "turbo run lint",
+    "prepare": "husky",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.12",
+    "fallow": "^3.26.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.5.1",
+    "turbo": "^2.10.13",
+    "ultracite": "7.12.0"
+  },
+  "packageManager": "bun@1.4.2"
+}
