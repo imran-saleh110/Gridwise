@@ -1,0 +1,20 @@
+entry = [
+  "apps/web/src/app/**/*.{ts,tsx}",
+  "apps/api/src/index.{ts,tsx}",
+  "packages/trpc/src/index.{ts,tsx}",
+  "packages/trpc/src/server/index.{ts,tsx}",
+  "packages/db/src/index.{ts,tsx}",
+  "packages/ui/src/components/**/*.{ts,tsx}",
+]
+
+workspaces = { patterns = ["apps/*", "packages/*"] }
+
+ignorePatterns = ["apps/api/vercel/**"]
+
+[duplicates]
+minOccurrences = 3
+
+[health]
+# Vendored shadcn primitives in @repo/ui are third-party code; keep them
+# reachable (entry above) but out of our complexity/CRAP budget.
+ignore = ["packages/ui/src/components/**"]

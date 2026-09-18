@@ -1,0 +1,225 @@
+@import "shadcn/tailwind.css";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    var(--font-space-grotesk), var(--font-inter), system-ui, sans-serif;
+  --font-mono:
+    var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-swift: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --shadow-topline: inset 0 1px 0 0 rgb(255 255 255 / 0.04);
+  --shadow-panel:
+    0 1px 0 0 rgb(0 0 0 / 0.4), 0 12px 32px -16px rgb(0 0 0 / 0.6);
+  --shadow-glow-solar:
+    0 0 0 1px rgb(245 165 36 / 0.35), 0 8px 40px -12px rgb(245 165 36 / 0.35);
+  --shadow-glow-battery:
+    0 0 0 1px rgb(47 223 162 / 0.3), 0 8px 40px -12px rgb(47 223 162 / 0.3);
+  --shadow-glow-destructive:
+    0 0 0 1px rgb(255 101 85 / 0.35), 0 8px 40px -12px rgb(255 101 85 / 0.3);
+}
+
+:root {
+  --radius: 0.625rem;
+
+  /* Base — a true black shell, lit from above */
+  --background: #050505;
+  --foreground: #eef1f3;
+
+  --card: #0b0c0d;
+  --card-foreground: #eef1f3;
+
+  --popover: #101113;
+  --popover-foreground: #eef1f3;
+
+  --primary: #f5a524;
+  --primary-foreground: #201000;
+
+  --secondary: #16181a;
+  --secondary-foreground: #eef1f3;
+
+  --muted: #121417;
+  --muted-foreground: #98a1a7;
+
+  --accent: #1b1e20;
+  --accent-foreground: #eef1f3;
+
+  --destructive: #ff6555;
+  --destructive-foreground: #2b0a05;
+
+  --success: #2fdfa2;
+  --success-foreground: #051f16;
+
+  --warning: #ffcf5c;
+  --warning-foreground: #2b2100;
+
+  --info: #7fc7ff;
+  --info-foreground: #081f33;
+
+  --border: #1c1f22;
+  --input: #24272b;
+  --ring: #f5a524;
+
+  /* Chart — the energy flows of a single 24-hour day */
+  --chart-1: #f5a524;
+  --chart-2: #35e0bf;
+  --chart-3: #9d8cff;
+  --chart-4: #e8edf0;
+  --chart-5: #ff8f66;
+
+  --sidebar: #080909;
+  --sidebar-foreground: #dde2e6;
+  --sidebar-primary: #f5a524;
+  --sidebar-primary-foreground: #201000;
+  --sidebar-accent: #1b1e20;
+  --sidebar-accent-foreground: #eef1f3;
+  --sidebar-border: #1c1f22;
+  --sidebar-ring: #f5a524;
+
+  color-scheme: dark;
+}
+
+@keyframes solar-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes battery-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-image: radial-gradient(
+      1100px 480px at 50% -140px,
+      rgb(245 165 36 / 0.07),
+      transparent 65%
+    );
+    background-attachment: fixed;
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    text-wrap: balance;
+    @apply font-display tracking-tight;
+  }
+
+  ::selection {
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--primary) 32%, transparent);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--muted-foreground) 28%, transparent);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--muted-foreground) 45%, transparent);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

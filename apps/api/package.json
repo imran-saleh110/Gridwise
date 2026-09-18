@@ -1,0 +1,26 @@
+{
+  "name": "@repo/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/index.ts --target=bun --outdir=dist --minify",
+    "clean": "rm -rf dist .turbo",
+    "dev": "bun --watch src/index.ts",
+    "lint": "biome check .",
+    "start": "bun src/index.ts",
+    "test": "bun test --pass-with-no-tests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/trpc-server": "^0.4.2",
+    "@repo/db": "workspace:*",
+    "@repo/trpc": "workspace:*",
+    "@trpc/server": "^11.18.0",
+    "hono": "^4.13.8"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^5.9.3"
+  }
+}
