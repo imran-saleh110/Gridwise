@@ -3,6 +3,8 @@ import { describe, expect, test } from "bun:test";
 import type { DirectiveInterpretation, Scenario } from "../index.ts";
 import { baselineDirectives, normalizeDirectives } from "../index.ts";
 
+const ALL_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
+
 function makeScenario(): Scenario {
   return {
     battery: {
@@ -26,92 +28,75 @@ function makeScenario(): Scenario {
 function solar(
   note_index: number,
   factor = 0.5,
-  applies = true
+  hours: readonly number[] = ALL_HOURS
 ): DirectiveInterpretation {
   return {
-    applies,
-    directive_type: "solar_reduction",
+    applies: true as const,
+    directive_type: "solar_reduction" as const,
     explanation: "",
     note_index,
-    structured_adjustment: {
-      effective_solar_factor: factor,
-      type: "solar_reduction",
-    },
+    structured_adjustment: { factor, hours: [...hours] },
   };
 }
 
 function reserve(
   note_index: number,
-  minimum_reserve_kwh: number
+  minimum_energy_kwh: number,
+  hours: readonly number[] = ALL_HOURS
 ): DirectiveInterpretation {
   return {
-    applies: true,
-    directive_type: "minimum_battery_reserve",
+    applies: true as const,
+    directive_type: "minimum_battery_reserve" as const,
     explanation: "",
     note_index,
-    structured_adjustment: {
-      minimum_reserve_kwh,
-      type: "minimum_battery_reserve",
-    },
+    structured_adjustment: { hours: [...hours], minimum_energy_kwh },
   };
 }
 
 function chargeWindow(
   note_index: number,
-  hour_start: number,
-  hour_end: number
+  hours: readonly number[]
 ): DirectiveInterpretation {
   return {
-    applies: true,
-    directive_type: "no_charge_window",
+    applies: true as const,
+    directive_type: "no_charge_window" as const,
     explanation: "",
     note_index,
-    structured_adjustment: { hour_end, hour_start, type: "no_charge_window" },
+    structured_adjustment: { hours: [...hours] },
   };
 }
 
 function dischargeWindow(
   note_index: number,
-  hour_start: number,
-  hour_end: number
+  hours: readonly number[]
 ): DirectiveInterpretation {
   return {
-    applies: true,
-    directive_type: "no_discharge_window",
+    applies: true as const,
+    directive_type: "no_discharge_window" as const,
     explanation: "",
     note_index,
-    structured_adjustment: {
-      hour_end,
-      hour_start,
-      type: "no_discharge_window",
-    },
+    structured_adjustment: { hours: [...hours] },
   };
 }
 
 function gridWindow(
   note_index: number,
-  hour_start: number,
-  hour_end: number,
+  hours: readonly number[],
   limit: number
 ): DirectiveInterpretation {
   return {
-    applies: true,
-    directive_type: "max_grid_window",
+    applies: true as const,
+    directive_type: "max_grid_window" as const,
     explanation: "",
     note_index,
-    structured_adjustment: {
-      hour_end,
-      hour_start,
-      max_grid_import_kwh: limit,
-      type: "max_grid_window",
-    },
+    structured_adjustment: { hours: [...hours], max_grid_kwh: limit },
   };
 }
 
 function noOp(note_index: number): DirectiveInterpretation {
   return {
-    applies: false,
-    directive_type: "no_op",
+    applies: false as const,
+    directive_type: "no_op" as const,
     explanation: "",
     note_index,
     structured_adjustment: null,
@@ -132,15 +117,29 @@ describe("normalizeDirectives", () => {
     expect(result.discharge_allowed).toEqual(
       Array.from({ length: 24 }, () => true)
     );
-    expect(result.max_grid_import).toEqual(
+    expect(result.max_grid_kwh).toEqual(
       Array.from({ length: 24 }, () => Number.POSITIVE_INFINITY)
     );
   });
 
-  test("applies solar reductions multiplicatively", () => {
+  test("applies solar reductions only to the listed hours", () => {
     const scenario = makeScenario();
     const result = normalizeDirectives({
-      interpretations: [solar(0, 0.5), solar(1, 0.4)],
+      interpretations: [solar(0, 0.5, [4, 5, 6])],
+      scenario,
+    });
+    for (const hour of [4, 5, 6]) {
+      expect(result.effective_solar_factor[hour]).toBe(0.5);
+    }
+    for (const hour of [0, 1, 2, 3, 7, 23]) {
+      expect(result.effective_solar_factor[hour]).toBe(1);
+    }
+  });
+
+  test("combines overlapping solar reductions multiplicatively", () => {
+    const scenario = makeScenario();
+    const result = normalizeDirectives({
+      interpretations: [solar(0, 0.5, ALL_HOURS), solar(1, 0.4, ALL_HOURS)],
       scenario,
     });
     expect(result.effective_solar_factor).toEqual(
@@ -151,7 +150,13 @@ describe("normalizeDirectives", () => {
   test("ignores an inactive directive", () => {
     const scenario = makeScenario();
     const result = normalizeDirectives({
-      interpretations: [{ ...solar(0, 0.25), applies: false }, noOp(1)],
+      interpretations: [
+        {
+          ...solar(0, 0.25, ALL_HOURS),
+          applies: false,
+        } as unknown as DirectiveInterpretation,
+        noOp(1),
+      ],
       scenario,
     });
     expect(result.effective_solar_factor.every((factor) => factor === 1)).toBe(
@@ -162,61 +167,65 @@ describe("normalizeDirectives", () => {
   test("takes the maximum of overlapping battery reserve directives", () => {
     const scenario = makeScenario();
     const result = normalizeDirectives({
-      interpretations: [reserve(0, 4), reserve(1, 3)],
+      interpretations: [reserve(0, 4, ALL_HOURS), reserve(1, 3, ALL_HOURS)],
       scenario,
     });
     expect(result.minimum_reserve).toEqual(Array.from({ length: 24 }, () => 4));
   });
 
-  test("disables charging in the specified window only", () => {
+  test("applies a reserve directive only to the listed hours", () => {
     const scenario = makeScenario();
     const result = normalizeDirectives({
-      interpretations: [chargeWindow(0, 5, 10)],
+      interpretations: [reserve(0, 4, [2, 3])],
       scenario,
     });
-    expect(result.charge_allowed.slice(0, 5)).toEqual([
-      true,
-      true,
-      true,
-      true,
-      true,
-    ]);
-    expect(result.charge_allowed.slice(5, 10)).toEqual([
-      false,
-      false,
-      false,
-      false,
-      false,
-    ]);
-    expect(result.charge_allowed.slice(10)).toEqual(
-      Array.from({ length: 14 }, () => true)
-    );
+    expect(result.minimum_reserve[2]).toBe(4);
+    expect(result.minimum_reserve[3]).toBe(4);
+    expect(result.minimum_reserve[0]).toBe(2);
+    expect(result.minimum_reserve[23]).toBe(2);
   });
 
-  test("disables discharging in the specified window only", () => {
+  test("disables charging only in the specified hours", () => {
     const scenario = makeScenario();
     const result = normalizeDirectives({
-      interpretations: [dischargeWindow(0, 12, 24)],
+      interpretations: [chargeWindow(0, [5, 6, 7, 8, 9])],
       scenario,
     });
-    expect(result.discharge_allowed.slice(0, 12)).toEqual(
-      Array.from({ length: 12 }, () => true)
-    );
-    expect(result.discharge_allowed.slice(12)).toEqual(
-      Array.from({ length: 12 }, () => false)
-    );
+    for (const hour of [5, 6, 7, 8, 9]) {
+      expect(result.charge_allowed[hour]).toBe(false);
+    }
+    for (const hour of [4, 10]) {
+      expect(result.charge_allowed[hour]).toBe(true);
+    }
   });
 
-  test("caps grid imports with overlapping windows", () => {
+  test("disables discharging only in the specified hours", () => {
     const scenario = makeScenario();
     const result = normalizeDirectives({
-      interpretations: [gridWindow(0, 0, 24, 8), gridWindow(1, 0, 6, 4)],
+      interpretations: [dischargeWindow(0, [12, 13, 14, 15])],
       scenario,
     });
-    expect(result.max_grid_import.slice(0, 6)).toEqual(
+    for (const hour of [12, 13, 14, 15]) {
+      expect(result.discharge_allowed[hour]).toBe(false);
+    }
+    for (const hour of [11, 16]) {
+      expect(result.discharge_allowed[hour]).toBe(true);
+    }
+  });
+
+  test("caps grid imports to the tightest overlapping limit", () => {
+    const scenario = makeScenario();
+    const result = normalizeDirectives({
+      interpretations: [
+        gridWindow(0, ALL_HOURS, 8),
+        gridWindow(1, ALL_HOURS.slice(0, 6), 4),
+      ],
+      scenario,
+    });
+    expect(result.max_grid_kwh.slice(0, 6)).toEqual(
       Array.from({ length: 6 }, () => 4)
     );
-    expect(result.max_grid_import.slice(6)).toEqual(
+    expect(result.max_grid_kwh.slice(6)).toEqual(
       Array.from({ length: 18 }, () => 8)
     );
   });

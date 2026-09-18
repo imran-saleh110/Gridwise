@@ -1,5 +1,6 @@
+import type { DirectiveInterpretation } from "../domain/directive.ts";
 import type { Scenario } from "../domain/scenario.ts";
-import type { DirectiveInterpretation } from "./directive.ts";
+import type { NormalizedDirectives } from "./normalized.ts";
 
 const HOURS = 24;
 
@@ -7,97 +8,122 @@ interface MutableDirectives {
   chargeAllowed: boolean[];
   dischargeAllowed: boolean[];
   effectiveSolarFactor: number[];
-  maxGridImport: number[];
+  maxGridKwh: number[];
   minimumReserve: number[];
 }
 
-export function baselineDirectives(scenario: Scenario) {
+function mutableBaseline(scenario: Scenario): MutableDirectives {
   return {
-    charge_allowed: Array.from({ length: HOURS }, () => true),
-    discharge_allowed: Array.from({ length: HOURS }, () => true),
-    effective_solar_factor: Array.from({ length: HOURS }, () => 1),
-    max_grid_import: Array.from(
-      { length: HOURS },
-      () => Number.POSITIVE_INFINITY
-    ),
-    minimum_reserve: Array.from(
+    chargeAllowed: Array.from({ length: HOURS }, () => true),
+    dischargeAllowed: Array.from({ length: HOURS }, () => true),
+    effectiveSolarFactor: Array.from({ length: HOURS }, () => 1),
+    maxGridKwh: Array.from({ length: HOURS }, () => Number.POSITIVE_INFINITY),
+    minimumReserve: Array.from(
       { length: HOURS },
       () => scenario.battery.minimum_energy_kwh
     ),
+  };
+}
+
+function applySolarFactor(
+  params: MutableDirectives,
+  hours: readonly number[],
+  factor: number
+): void {
+  for (const hour of hours) {
+    const current = params.effectiveSolarFactor[hour] ?? 1;
+    params.effectiveSolarFactor[hour] = current * factor;
+  }
+}
+
+function applyReserve(
+  params: MutableDirectives,
+  hours: readonly number[],
+  reserve: number
+): void {
+  for (const hour of hours) {
+    const current = params.minimumReserve[hour] ?? 0;
+    params.minimumReserve[hour] = Math.max(current, reserve);
+  }
+}
+
+function forbid(flags: boolean[], hours: readonly number[]): void {
+  for (const hour of hours) {
+    flags[hour] = false;
+  }
+}
+
+function capGrid(
+  params: MutableDirectives,
+  hours: readonly number[],
+  limit: number
+): void {
+  for (const hour of hours) {
+    const current = params.maxGridKwh[hour] ?? Number.POSITIVE_INFINITY;
+    params.maxGridKwh[hour] = Math.min(current, limit);
+  }
+}
+
+export function baselineDirectives(scenario: Scenario): NormalizedDirectives {
+  const params = mutableBaseline(scenario);
+  return {
+    charge_allowed: params.chargeAllowed,
+    discharge_allowed: params.dischargeAllowed,
+    effective_solar_factor: params.effectiveSolarFactor,
+    max_grid_kwh: params.maxGridKwh,
+    minimum_reserve: params.minimumReserve,
   };
 }
 
 export function normalizeDirectives(input: {
   readonly scenario: Scenario;
   readonly interpretations: readonly DirectiveInterpretation[];
-}) {
+}): NormalizedDirectives {
   const { scenario, interpretations } = input;
-
-  const params: MutableDirectives = {
-    chargeAllowed: Array.from({ length: HOURS }, () => true),
-    dischargeAllowed: Array.from({ length: HOURS }, () => true),
-    effectiveSolarFactor: Array.from({ length: HOURS }, () => 1),
-    maxGridImport: Array.from(
-      { length: HOURS },
-      () => Number.POSITIVE_INFINITY
-    ),
-    minimumReserve: Array.from(
-      { length: HOURS },
-      () => scenario.battery.minimum_energy_kwh
-    ),
-  };
-
-  const inWindow = (start: number, end: number, hour: number) =>
-    hour >= start && hour < end;
+  const params = mutableBaseline(scenario);
 
   for (const interpretation of interpretations) {
-    const adjustment = interpretation.structured_adjustment;
-    if (!interpretation.applies || adjustment === null) {
+    if (
+      !interpretation.applies ||
+      interpretation.structured_adjustment === null
+    ) {
       continue;
     }
 
-    switch (adjustment.type) {
-      case "solar_reduction": {
-        const factor = adjustment.effective_solar_factor;
-        params.effectiveSolarFactor = params.effectiveSolarFactor.map(
-          (value) => value * factor
+    switch (interpretation.directive_type) {
+      case "solar_reduction":
+        applySolarFactor(
+          params,
+          interpretation.structured_adjustment.hours,
+          interpretation.structured_adjustment.factor
         );
         break;
-      }
-      case "minimum_battery_reserve": {
-        const reserve = adjustment.minimum_reserve_kwh;
-        params.minimumReserve = params.minimumReserve.map((value) =>
-          Math.max(value, reserve)
+      case "minimum_battery_reserve":
+        applyReserve(
+          params,
+          interpretation.structured_adjustment.hours,
+          interpretation.structured_adjustment.minimum_energy_kwh
         );
         break;
-      }
       case "no_charge_window":
-        for (
-          let hour = adjustment.hour_start;
-          hour < adjustment.hour_end;
-          hour += 1
-        ) {
-          params.chargeAllowed[hour] = false;
-        }
+        forbid(
+          params.chargeAllowed,
+          interpretation.structured_adjustment.hours
+        );
         break;
       case "no_discharge_window":
-        for (
-          let hour = adjustment.hour_start;
-          hour < adjustment.hour_end;
-          hour += 1
-        ) {
-          params.dischargeAllowed[hour] = false;
-        }
-        break;
-      case "max_grid_window": {
-        const limit = adjustment.max_grid_import_kwh;
-        params.maxGridImport = params.maxGridImport.map((value, hour) =>
-          inWindow(adjustment.hour_start, adjustment.hour_end, hour)
-            ? Math.min(value, limit)
-            : value
+        forbid(
+          params.dischargeAllowed,
+          interpretation.structured_adjustment.hours
         );
         break;
-      }
+      case "max_grid_window":
+        capGrid(
+          params,
+          interpretation.structured_adjustment.hours,
+          interpretation.structured_adjustment.max_grid_kwh
+        );
+        break;
       default:
         break;
     }
@@ -107,7 +133,7 @@ export function normalizeDirectives(input: {
     charge_allowed: params.chargeAllowed,
     discharge_allowed: params.dischargeAllowed,
     effective_solar_factor: params.effectiveSolarFactor,
-    max_grid_import: params.maxGridImport,
+    max_grid_kwh: params.maxGridKwh,
     minimum_reserve: params.minimumReserve,
   };
 }

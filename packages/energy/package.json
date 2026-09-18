@@ -4,7 +4,12 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./domain": "./src/domain/index.ts",
+    "./errors": "./src/errors/index.ts",
+    "./interpreter": "./src/interpreter/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./service": "./src/service/index.ts"
   },
   "scripts": {
     "clean": "rm -rf .turbo",
@@ -13,7 +18,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "highs": "^1.15.3"
+    "highs": "^1.15.3",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

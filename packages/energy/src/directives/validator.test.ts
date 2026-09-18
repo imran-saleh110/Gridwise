@@ -36,52 +36,51 @@ function makeScenario(
 
 function solar(
   note_index: number,
-  effective_solar_factor = 0.5,
-  applies = true
+  factor = 0.5,
+  hours: readonly number[] = [0, 1]
 ): DirectiveInterpretation {
   return {
-    applies,
-    directive_type: "solar_reduction",
+    applies: true as const,
+    directive_type: "solar_reduction" as const,
     explanation: "",
     note_index,
-    structured_adjustment: { effective_solar_factor, type: "solar_reduction" },
+    structured_adjustment: { factor, hours: [...hours] },
   };
 }
 
 function reserve(
   note_index: number,
-  minimum_reserve_kwh: number
+  minimum_energy_kwh: number
 ): DirectiveInterpretation {
   return {
-    applies: true,
-    directive_type: "minimum_battery_reserve",
+    applies: true as const,
+    directive_type: "minimum_battery_reserve" as const,
     explanation: "",
     note_index,
     structured_adjustment: {
-      minimum_reserve_kwh,
-      type: "minimum_battery_reserve",
+      hours: [0, 1],
+      minimum_energy_kwh,
     },
   };
 }
 
 function chargeWindow(
   note_index: number,
-  hour_start: number,
-  hour_end: number
+  hours: readonly number[]
 ): DirectiveInterpretation {
   return {
-    applies: true,
-    directive_type: "no_charge_window",
+    applies: true as const,
+    directive_type: "no_charge_window" as const,
     explanation: "",
     note_index,
-    structured_adjustment: { hour_end, hour_start, type: "no_charge_window" },
+    structured_adjustment: { hours: [...hours] },
   };
 }
 
 function noOp(note_index: number): DirectiveInterpretation {
   return {
-    applies: false,
-    directive_type: "no_op",
+    applies: false as const,
+    directive_type: "no_op" as const,
     explanation: "",
     note_index,
     structured_adjustment: null,
@@ -98,7 +97,7 @@ describe("validateDirectiveInterpretations", () => {
   test("accepts a complete, valid mapping", () => {
     const scenario = makeScenario(3);
     const result = validateDirectiveInterpretations({
-      interpretations: [solar(0), chargeWindow(1, 10, 12), noOp(2)],
+      interpretations: [solar(0), chargeWindow(1, [10, 11]), noOp(2)],
       scenario,
     });
     expect(result.ok).toBe(true);
@@ -146,7 +145,10 @@ describe("validateDirectiveInterpretations", () => {
   });
 
   test("rejects no_op with applies = true", () => {
-    const interpretation = { ...noOp(0), applies: true };
+    const interpretation = {
+      ...noOp(0),
+      applies: true,
+    } as unknown as DirectiveInterpretation;
     const result = validateDirectiveInterpretations({
       interpretations: [interpretation],
       scenario: makeScenario(1),
@@ -159,11 +161,9 @@ describe("validateDirectiveInterpretations", () => {
     const interpretation: DirectiveInterpretation = {
       ...noOp(0),
       structured_adjustment: {
-        hour_end: 1,
-        hour_start: 0,
-        type: "no_charge_window",
-      },
-    };
+        hours: [0, 1],
+      } as unknown as null,
+    } as unknown as DirectiveInterpretation;
     const result = validateDirectiveInterpretations({
       interpretations: [interpretation],
       scenario: makeScenario(1),
@@ -173,7 +173,10 @@ describe("validateDirectiveInterpretations", () => {
   });
 
   test("rejects an applied directive without an adjustment", () => {
-    const interpretation = { ...solar(0), structured_adjustment: null };
+    const interpretation = {
+      ...solar(0),
+      structured_adjustment: null,
+    } as unknown as DirectiveInterpretation;
     const result = validateDirectiveInterpretations({
       interpretations: [interpretation],
       scenario: makeScenario(1),
@@ -182,31 +185,49 @@ describe("validateDirectiveInterpretations", () => {
     expect(codesOf(result)).toContain("non_no_op_missing_adjustment");
   });
 
-  test("rejects non-integer window hours", () => {
+  test("rejects non-integer hours", () => {
     const result = validateDirectiveInterpretations({
-      interpretations: [chargeWindow(0, 0.5, 2)],
+      interpretations: [chargeWindow(0, [0.5, 2] as unknown as number[])],
       scenario: makeScenario(1),
     });
     expect(result.ok).toBe(false);
     expect(codesOf(result)).toContain("non_integer_hour");
   });
 
-  test("rejects hour windows outside [0,24]", () => {
+  test("rejects hours outside [0,23]", () => {
     const result = validateDirectiveInterpretations({
-      interpretations: [chargeWindow(0, 22, 25)],
+      interpretations: [chargeWindow(0, [22, 24])],
       scenario: makeScenario(1),
     });
     expect(result.ok).toBe(false);
     expect(codesOf(result)).toContain("hour_out_of_bounds");
   });
 
-  test("rejects an empty or inverted hour window", () => {
+  test("rejects an empty hours list", () => {
     const result = validateDirectiveInterpretations({
-      interpretations: [chargeWindow(0, 12, 12)],
+      interpretations: [chargeWindow(0, [])],
       scenario: makeScenario(1),
     });
     expect(result.ok).toBe(false);
-    expect(codesOf(result)).toContain("invalid_hour_range");
+    expect(codesOf(result)).toContain("empty_directive_hours");
+  });
+
+  test("rejects duplicate hours", () => {
+    const result = validateDirectiveInterpretations({
+      interpretations: [chargeWindow(0, [3, 3])],
+      scenario: makeScenario(1),
+    });
+    expect(result.ok).toBe(false);
+    expect(codesOf(result)).toContain("duplicate_hour");
+  });
+
+  test("rejects hours that are not ascending", () => {
+    const result = validateDirectiveInterpretations({
+      interpretations: [chargeWindow(0, [5, 4])],
+      scenario: makeScenario(1),
+    });
+    expect(result.ok).toBe(false);
+    expect(codesOf(result)).toContain("non_ascending_hours");
   });
 
   test("rejects a solar factor outside [0,1]", () => {
@@ -227,17 +248,15 @@ describe("validateDirectiveInterpretations", () => {
     expect(codesOf(result)).toContain("reserve_out_of_range");
   });
 
-  test("rejects a negative grid import limit", () => {
+  test("rejects a negative grid limit", () => {
     const interpretation: DirectiveInterpretation = {
       applies: true,
       directive_type: "max_grid_window",
       explanation: "",
       note_index: 0,
       structured_adjustment: {
-        hour_end: 3,
-        hour_start: 0,
-        max_grid_import_kwh: -1,
-        type: "max_grid_window",
+        hours: [0, 1],
+        max_grid_kwh: -1,
       },
     };
     const result = validateDirectiveInterpretations({
@@ -249,21 +268,19 @@ describe("validateDirectiveInterpretations", () => {
   });
 
   test("ignores inactive directives entirely", () => {
+    const inactiveSolar = {
+      ...solar(0, 99),
+      applies: false,
+    } as unknown as DirectiveInterpretation;
+    const inactiveCharge = {
+      applies: false,
+      directive_type: "no_charge_window",
+      explanation: "",
+      note_index: 1,
+      structured_adjustment: { hours: [8] },
+    } as unknown as DirectiveInterpretation;
     const result = validateDirectiveInterpretations({
-      interpretations: [
-        { ...solar(0, 99), applies: false },
-        {
-          applies: false,
-          directive_type: "no_charge_window",
-          explanation: "",
-          note_index: 1,
-          structured_adjustment: {
-            hour_end: 4,
-            hour_start: 8,
-            type: "no_charge_window",
-          },
-        },
-      ],
+      interpretations: [inactiveSolar, inactiveCharge],
       scenario: makeScenario(2),
     });
     expect(result.ok).toBe(true);

@@ -1,7 +1,21 @@
 import type { NormalizedDirectives } from "../directives/normalized.ts";
-import { validateScenario } from "../directives/validator.ts";
+import { normalizeDirectives } from "../directives/normalizer.ts";
+import {
+  type DirectiveValidationFailure,
+  validateDirectiveInterpretations,
+  validateScenario,
+} from "../directives/validator.ts";
+import type { DirectiveInterpretation } from "../domain/directive.ts";
+import type {
+  BatteryAction,
+  HourlyPlanEntry,
+  OptimizationPlan,
+} from "../domain/plan.ts";
 import type { Battery, Hour, Scenario } from "../domain/scenario.ts";
-import { DirectiveValidationError } from "../errors/directive-validation-error.ts";
+import {
+  DirectiveValidationError,
+  InvalidScenarioError,
+} from "../errors/index.ts";
 import {
   createEnergySolver,
   type EnergySolver,
@@ -10,53 +24,6 @@ import {
   type LpSolution,
   type LpVariable,
 } from "./solver.ts";
-
-export interface HourlyPlanEntry {
-  readonly battery_charge_kwh: number;
-  readonly battery_discharge_kwh: number;
-  readonly battery_energy_kwh: number;
-  readonly demand_kwh: number;
-  readonly grid_cost_bdt: number;
-  readonly grid_kwh: number;
-  readonly hour: number;
-  readonly solar_used_kwh: number;
-}
-
-export interface PlanSummary {
-  readonly final_battery_energy_kwh: number;
-  readonly minimum_battery_energy_kwh: number;
-  readonly peak_battery_energy_kwh: number;
-  readonly start_battery_energy_kwh: number;
-  readonly total_battery_charge_kwh: number;
-  readonly total_battery_discharge_kwh: number;
-  readonly total_demand_kwh: number;
-  readonly total_solar_available_kwh: number;
-  readonly total_solar_used_kwh: number;
-}
-
-export interface OptimizationPlan {
-  readonly hourly_plan: readonly HourlyPlanEntry[];
-  readonly peak_grid_kwh: number;
-  readonly plan_summary: PlanSummary;
-  readonly scenario_id: string;
-  readonly total_cost_bdt: number;
-  readonly total_grid_kwh: number;
-}
-
-export interface OptimizeInput {
-  readonly normalized: NormalizedDirectives;
-  readonly scenario: Scenario;
-}
-
-export interface OptimizeResult {
-  readonly normalized: NormalizedDirectives;
-  readonly plan: OptimizationPlan;
-}
-
-export interface EnergyOptimizer {
-  optimize: (input: OptimizeInput) => Promise<OptimizeResult>;
-  readonly solver: EnergySolver;
-}
 
 const HOURS = 24;
 const HOURLY = Array.from({ length: HOURS }, (_, hour) => hour);
@@ -80,6 +47,10 @@ function makeRow(
   return { coefficients: new Map(coefficients), lower, name, upper };
 }
 
+// ---------------------------------------------------------------------------
+// LP model construction
+// ---------------------------------------------------------------------------
+
 function hourVariables(
   scenario: Scenario,
   normalized: NormalizedDirectives
@@ -96,7 +67,7 @@ function hourVariables(
         cost: entry.tariff_bdt_per_kwh,
         lower: 0,
         name: gridName(hour),
-        upper: normalized.max_grid_import[hour] ?? Number.POSITIVE_INFINITY,
+        upper: normalized.max_grid_kwh[hour] ?? Number.POSITIVE_INFINITY,
       },
       {
         cost: 0,
@@ -222,6 +193,47 @@ export function buildOptimizationLp(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Solution -> canonical plan
+// ---------------------------------------------------------------------------
+
+function roundValue(value: number): number {
+  if (Math.abs(value) < 1e-9) {
+    return 0;
+  }
+  return Math.round(value * 100) / 100;
+}
+
+function batteryActionOf(
+  charge: number,
+  discharge: number
+): {
+  readonly action: BatteryAction;
+  readonly batteryKwh: number;
+} {
+  const net = discharge - charge;
+  if (net > 1e-9) {
+    return { action: "discharge", batteryKwh: roundValue(net) };
+  }
+  if (net < -1e-9) {
+    return { action: "charge", batteryKwh: roundValue(-net) };
+  }
+  return { action: "idle", batteryKwh: 0 };
+}
+
+function composeSummary(input: {
+  readonly solarUsed: number;
+  readonly totalCharge: number;
+  readonly totalCost: number;
+  readonly totalDemand: number;
+  readonly totalGrid: number;
+}): string {
+  const { solarUsed, totalCharge, totalCost, totalDemand, totalGrid } = input;
+  const solarCoverage =
+    totalDemand > 0 ? Math.round((solarUsed / totalDemand) * 100) : 0;
+  return `Cost-minimal dispatch over 24h: ${roundValue(totalGrid)} kWh from grid (${solarCoverage}% of demand met by ${roundValue(solarUsed)} kWh solar), battery cycled ${roundValue(totalCharge)} kWh — total cost ${roundValue(totalCost)} BDT.`;
+}
+
 function planFromSolution(
   scenario: Scenario,
   solution: LpSolution
@@ -231,97 +243,98 @@ function planFromSolution(
     `${prefix}_${padded(hour)}`;
 
   const hourly: HourlyPlanEntry[] = [];
+  let peakGrid = 0;
+  let solarUsedTotal = 0;
+  let totalCharge = 0;
+  let totalCost = 0;
+  let totalDemand = 0;
+  let totalGrid = 0;
+
   for (const hour of HOURLY) {
     const entry = scenario.hours[hour];
     if (!entry) {
       continue;
     }
-    const grid = value(paddedName("grid", hour));
-    const solar = value(paddedName("solar", hour));
+    const grid = roundValue(value(paddedName("grid", hour)));
+    const solar = roundValue(value(paddedName("solar", hour)));
     const charge = value(paddedName("charge", hour));
     const discharge = value(paddedName("discharge", hour));
+    const action = batteryActionOf(charge, discharge);
     hourly.push({
-      battery_charge_kwh: charge,
-      battery_discharge_kwh: discharge,
-      battery_energy_kwh: value(paddedName("battery", hour)),
-      demand_kwh: entry.demand_kwh,
-      grid_cost_bdt: grid * entry.tariff_bdt_per_kwh,
+      battery_action: action.action,
+      battery_energy_after_kwh: roundValue(value(paddedName("battery", hour))),
+      battery_kwh: action.batteryKwh,
       grid_kwh: grid,
       hour: entry.hour,
       solar_used_kwh: solar,
     });
-  }
 
-  const totalGrid = hourly.reduce((sum, entry) => sum + entry.grid_kwh, 0);
-  const totalCost = hourly.reduce((sum, entry) => sum + entry.grid_cost_bdt, 0);
-  const peakGrid = hourly.reduce(
-    (max, entry) => Math.max(max, entry.grid_kwh),
-    0
-  );
-  const demand = hourly.reduce((sum, entry) => sum + entry.demand_kwh, 0);
-  const solarAvailable = scenario.hours.reduce(
-    (sum, entry) => sum + entry.solar_kwh,
-    0
-  );
-  const solarUsed = hourly.reduce(
-    (sum, entry) => sum + entry.solar_used_kwh,
-    0
-  );
-  const batteryEnergies = hourly.map((entry) => entry.battery_energy_kwh);
-  const startBattery = batteryEnergies[0] ?? 0;
-  const finalBattery = batteryEnergies.at(-1) ?? 0;
+    totalGrid += grid;
+    totalCost += grid * entry.tariff_bdt_per_kwh;
+    totalDemand += entry.demand_kwh;
+    solarUsedTotal += solar;
+    peakGrid = Math.max(peakGrid, grid);
+    if (action.action === "charge") {
+      totalCharge += action.batteryKwh;
+    }
+  }
 
   return {
     hourly_plan: hourly,
-    peak_grid_kwh: roundMoney(peakGrid),
-    plan_summary: {
-      final_battery_energy_kwh: roundMoney(finalBattery),
-      minimum_battery_energy_kwh: roundMoney(Math.min(...batteryEnergies)),
-      peak_battery_energy_kwh: roundMoney(Math.max(0, ...batteryEnergies)),
-      start_battery_energy_kwh: roundMoney(startBattery),
-      total_battery_charge_kwh: roundMoney(
-        hourly.reduce((sum, entry) => sum + entry.battery_charge_kwh, 0)
-      ),
-      total_battery_discharge_kwh: roundMoney(
-        hourly.reduce((sum, entry) => sum + entry.battery_discharge_kwh, 0)
-      ),
-      total_demand_kwh: roundMoney(demand),
-      total_solar_available_kwh: roundMoney(solarAvailable),
-      total_solar_used_kwh: roundMoney(solarUsed),
-    },
-    scenario_id: scenario.scenario_id,
-    total_cost_bdt: roundMoney(totalCost),
-    total_grid_kwh: roundMoney(totalGrid),
+    peak_grid_kwh: roundValue(peakGrid),
+    plan_summary: composeSummary({
+      solarUsed: solarUsedTotal,
+      totalCharge,
+      totalCost: roundValue(totalCost),
+      totalDemand,
+      totalGrid,
+    }),
+    total_cost_bdt: roundValue(totalCost),
+    total_grid_kwh: roundValue(totalGrid),
   };
 }
 
-function roundMoney(value: number): number {
-  if (Math.abs(value) < 1e-9) {
-    return 0;
-  }
-  return Math.round(value * 100) / 100;
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+function assertionMessage(
+  failures: readonly DirectiveValidationFailure[]
+): string {
+  return failures.map((item) => item.message).join("; ");
 }
 
-export function createEnergyOptimizer(solver: EnergySolver): EnergyOptimizer {
+export function createEnergyOptimizer(solver: EnergySolver) {
   return {
-    async optimize(input: OptimizeInput): Promise<OptimizeResult> {
-      const { scenario, normalized } = input;
-
+    name: solver.name,
+    async optimize(
+      scenario: Scenario,
+      interpretations: readonly DirectiveInterpretation[]
+    ): Promise<OptimizationPlan> {
       const scenarioCheck = validateScenario(scenario);
       if (!scenarioCheck.ok) {
-        throw new DirectiveValidationError(
-          `Scenario is invalid: ${scenarioCheck.failures.map((f) => f.message).join("; ")}`,
-          scenarioCheck.failures
+        throw new InvalidScenarioError(
+          "The provided scenario is invalid.",
+          assertionMessage(scenarioCheck.failures)
         );
       }
 
-      const model = buildOptimizationLp(scenario, normalized);
-      const solution = await solver.solve(model);
+      const directiveCheck = validateDirectiveInterpretations({
+        interpretations,
+        scenario,
+      });
+      if (!directiveCheck.ok) {
+        throw new DirectiveValidationError(
+          "The interpreted directive violates domain rules or constraints.",
+          assertionMessage(directiveCheck.failures)
+        );
+      }
 
-      return {
-        normalized,
-        plan: planFromSolution(scenario, solution),
-      };
+      const normalized = normalizeDirectives({ interpretations, scenario });
+      const solution = await solver.solve(
+        buildOptimizationLp(scenario, normalized)
+      );
+      return planFromSolution(scenario, solution);
     },
     solver,
   };
@@ -329,8 +342,8 @@ export function createEnergyOptimizer(solver: EnergySolver): EnergyOptimizer {
 
 export async function optimize(
   scenario: Scenario,
-  normalized: NormalizedDirectives
+  interpretations: readonly DirectiveInterpretation[]
 ): Promise<OptimizationPlan> {
   const optimizer = createEnergyOptimizer(await createEnergySolver());
-  return (await optimizer.optimize({ normalized, scenario })).plan;
+  return optimizer.optimize(scenario, interpretations);
 }

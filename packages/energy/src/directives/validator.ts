@@ -1,19 +1,49 @@
-import type { Hour, Scenario } from "../domain/scenario.ts";
 import type {
-  DirectiveAdjustment,
   DirectiveInterpretation,
-  DirectiveValidationFailure,
-  DirectiveValidationFailureCode,
-  DirectiveValidationResult,
-} from "./directive.ts";
+  DirectiveType,
+  NoOpInterpretation,
+} from "../domain/directive.ts";
+import type { Hour, Scenario } from "../domain/scenario.ts";
 
-const ACTIVE_DIRECTIVE_KINDS = new Set([
-  "solar_reduction",
-  "minimum_battery_reserve",
-  "no_charge_window",
-  "no_discharge_window",
-  "max_grid_window",
-]);
+// ---------------------------------------------------------------------------
+// Validation result types
+// ---------------------------------------------------------------------------
+
+export type DirectiveValidationFailureCode =
+  | "count_mismatch"
+  | "out_of_range_note_index"
+  | "duplicate_note_index"
+  | "invalid_directive_type"
+  | "no_op_applies"
+  | "no_op_has_adjustment"
+  | "non_no_op_missing_adjustment"
+  | "empty_directive_hours"
+  | "non_integer_hour"
+  | "hour_out_of_bounds"
+  | "duplicate_hour"
+  | "non_ascending_hours"
+  | "solar_factor_out_of_range"
+  | "reserve_out_of_range"
+  | "grid_limit_out_of_range"
+  | "missing_hours"
+  | "negative_demand"
+  | "negative_solar"
+  | "negative_tariff";
+
+export interface DirectiveValidationFailure {
+  readonly code: DirectiveValidationFailureCode;
+  readonly message: string;
+  readonly note_index: number | null;
+}
+
+export interface DirectiveValidationResult {
+  readonly failures: readonly DirectiveValidationFailure[];
+  readonly ok: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function failure(
   code: DirectiveValidationFailureCode,
@@ -27,130 +57,110 @@ function isInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value);
 }
 
-function checkNoteCoverage(
-  interpretations: readonly DirectiveInterpretation[],
-  notesCount: number
-) {
-  if (interpretations.length !== notesCount) {
-    return [
-      failure(
-        "count_mismatch",
-        `Expected exactly ${notesCount} interpretations (one per operator note), got ${interpretations.length}.`
-      ),
-    ];
-  }
-  return [];
-}
-
-type WindowAdjustment = Extract<
-  DirectiveAdjustment,
-  { readonly hour_start: number; readonly hour_end: number }
->;
-
-function checkWindow(
-  interpretation: DirectiveInterpretation,
-  adjustment: WindowAdjustment
-) {
-  const { hour_start: start, hour_end: end } = adjustment;
-  if (!(isInteger(start) && isInteger(end))) {
-    return failure(
-      "non_integer_hour",
-      `Hours must be integers, got [${String(start)}, ${String(end)}).`,
-      interpretation.note_index
-    );
-  }
-  if (start < 0 || start > 23 || end < 1 || end > 24) {
-    return failure(
-      "hour_out_of_bounds",
-      `Hour window [${start}, ${end}) must satisfy 0 <= start <= 23 and 1 <= end <= 24.`,
-      interpretation.note_index
-    );
-  }
-  if (start >= end) {
-    return failure(
-      "invalid_hour_range",
-      `Hour window must satisfy start < end, got [${start}, ${end}).`,
-      interpretation.note_index
-    );
-  }
-  return null;
-}
-
-function windowFailures(
-  interpretation: DirectiveInterpretation,
-  adjustment: WindowAdjustment
+function collectUniqueFailures(
+  failures: DirectiveValidationFailure[]
 ): DirectiveValidationFailure[] {
-  const check = checkWindow(interpretation, adjustment);
-  return check ? [check] : [];
+  return [...new Set(failures)];
 }
 
-function validateSolarReduction(
-  interpretation: DirectiveInterpretation,
-  adjustment: DirectiveAdjustment
-): DirectiveValidationFailure[] {
-  const factor = (
-    adjustment as Extract<
-      DirectiveAdjustment,
-      { readonly effective_solar_factor: number }
-    >
-  ).effective_solar_factor;
-  if (factor < 0 || factor > 1) {
-    return [
-      failure(
-        "solar_factor_out_of_range",
-        `Effective solar factor must be within [0, 1], got ${factor}.`,
-        interpretation.note_index
-      ),
-    ];
-  }
-  return [];
-}
+// ---------------------------------------------------------------------------
+// Interpretation-level checks
+// ---------------------------------------------------------------------------
 
-function validateBatteryReserve(
-  interpretation: DirectiveInterpretation,
-  adjustment: DirectiveAdjustment,
-  capacityKwh: number
+function validateAdjustmentHours(
+  noteIndex: number,
+  hours: readonly number[]
 ): DirectiveValidationFailure[] {
-  const reserve = (
-    adjustment as Extract<
-      DirectiveAdjustment,
-      { readonly minimum_reserve_kwh: number }
-    >
-  ).minimum_reserve_kwh;
-  if (reserve < 0 || reserve > capacityKwh) {
-    return [
-      failure(
-        "reserve_out_of_range",
-        `Minimum battery reserve must be within [0, ${capacityKwh}] kWh, got ${reserve}.`,
-        interpretation.note_index
-      ),
-    ];
-  }
-  return [];
-}
-
-function validateGridWindow(
-  interpretation: DirectiveInterpretation,
-  adjustment: DirectiveAdjustment
-): DirectiveValidationFailure[] {
-  const failures = windowFailures(
-    interpretation,
-    adjustment as WindowAdjustment
-  );
-  if (failures.length > 0) {
-    return failures;
-  }
-  const limit = (
-    adjustment as Extract<
-      DirectiveAdjustment,
-      { readonly max_grid_import_kwh: number }
-    >
-  ).max_grid_import_kwh;
-  if (limit < 0) {
+  const failures: DirectiveValidationFailure[] = [];
+  if (hours.length === 0) {
     failures.push(
       failure(
-        "grid_limit_out_of_range",
-        `Grid import limit must be >= 0, got ${limit}.`,
+        "empty_directive_hours",
+        "A directive must list at least one hour.",
+        noteIndex
+      )
+    );
+    return failures;
+  }
+
+  const seen = new Set<number>();
+  let previous = -1;
+  for (const hour of hours) {
+    if (!isInteger(hour)) {
+      failures.push(
+        failure(
+          "non_integer_hour",
+          `Directive hour ${String(hour)} must be an integer.`,
+          noteIndex
+        )
+      );
+      continue;
+    }
+    if (hour < 0 || hour > 23) {
+      failures.push(
+        failure(
+          "hour_out_of_bounds",
+          `Directive hour ${hour} must be within [0, 23].`,
+          noteIndex
+        )
+      );
+    }
+    if (seen.has(hour)) {
+      failures.push(
+        failure(
+          "duplicate_hour",
+          `Directive hour ${hour} appears more than once.`,
+          noteIndex
+        )
+      );
+    } else {
+      seen.add(hour);
+      if (hour <= previous) {
+        failures.push(
+          failure(
+            "non_ascending_hours",
+            `Directive hours must be ascending, got ${previous} then ${hour}.`,
+            noteIndex
+          )
+        );
+      }
+    }
+    previous = Math.max(previous, hour);
+  }
+  return failures;
+}
+
+type ActiveDirectiveType = Exclude<DirectiveType, "no_op">;
+
+type AppliedInterpretation = Exclude<
+  DirectiveInterpretation,
+  NoOpInterpretation
+>;
+
+const VALID_ACTIVE_DIRECTIVE_TYPES = new Set<ActiveDirectiveType>([
+  "solar_reduction",
+  "minimum_battery_reserve",
+  "no_charge_window",
+  "no_discharge_window",
+  "max_grid_window",
+]);
+
+function validateSolarReductionAdjustment(
+  interpretation: AppliedInterpretation
+): DirectiveValidationFailure[] {
+  if (interpretation.directive_type !== "solar_reduction") {
+    return [];
+  }
+  const adjustment = interpretation.structured_adjustment;
+  const failures = validateAdjustmentHours(
+    interpretation.note_index,
+    adjustment.hours
+  );
+  if (adjustment.factor < 0 || adjustment.factor > 1) {
+    failures.push(
+      failure(
+        "solar_factor_out_of_range",
+        `Solar factor must be within [0, 1], got ${adjustment.factor}.`,
         interpretation.note_index
       )
     );
@@ -158,28 +168,178 @@ function validateGridWindow(
   return failures;
 }
 
-function validateActiveAdjustment(
-  interpretation: DirectiveInterpretation,
-  adjustment: DirectiveAdjustment,
+function validateReserveAdjustment(
+  interpretation: AppliedInterpretation,
   scenario: Scenario
-) {
-  switch (interpretation.directive_type) {
-    case "solar_reduction":
-      return validateSolarReduction(interpretation, adjustment);
-    case "minimum_battery_reserve":
-      return validateBatteryReserve(
-        interpretation,
-        adjustment,
-        scenario.battery.capacity_kwh
-      );
-    case "no_charge_window":
-    case "no_discharge_window":
-      return windowFailures(interpretation, adjustment as WindowAdjustment);
-    case "max_grid_window":
-      return validateGridWindow(interpretation, adjustment);
-    default:
-      return [];
+): DirectiveValidationFailure[] {
+  if (interpretation.directive_type !== "minimum_battery_reserve") {
+    return [];
   }
+  const adjustment = interpretation.structured_adjustment;
+  const failures = validateAdjustmentHours(
+    interpretation.note_index,
+    adjustment.hours
+  );
+  if (
+    adjustment.minimum_energy_kwh < 0 ||
+    adjustment.minimum_energy_kwh > scenario.battery.capacity_kwh
+  ) {
+    failures.push(
+      failure(
+        "reserve_out_of_range",
+        `Reserve must be within [0, ${scenario.battery.capacity_kwh}] kWh, got ${adjustment.minimum_energy_kwh}.`,
+        interpretation.note_index
+      )
+    );
+  }
+  return failures;
+}
+
+function validateWindowAdjustmentHours(
+  interpretation: AppliedInterpretation
+): DirectiveValidationFailure[] {
+  if (
+    interpretation.directive_type !== "no_charge_window" &&
+    interpretation.directive_type !== "no_discharge_window"
+  ) {
+    return [];
+  }
+  return validateAdjustmentHours(
+    interpretation.note_index,
+    interpretation.structured_adjustment.hours
+  );
+}
+
+function validateMaxGridWindowAdjustment(
+  interpretation: AppliedInterpretation
+): DirectiveValidationFailure[] {
+  if (interpretation.directive_type !== "max_grid_window") {
+    return [];
+  }
+  const constraint = interpretation.structured_adjustment;
+  const failures = validateAdjustmentHours(
+    interpretation.note_index,
+    constraint.hours
+  );
+  if (constraint.max_grid_kwh < 0) {
+    failures.push(
+      failure(
+        "grid_limit_out_of_range",
+        `Grid limit must be >= 0, got ${constraint.max_grid_kwh}.`,
+        interpretation.note_index
+      )
+    );
+  }
+  return failures;
+}
+
+const ACTIVE_ADJUSTMENT_VALIDATORS: Record<
+  ActiveDirectiveType,
+  (
+    interpretation: AppliedInterpretation,
+    scenario: Scenario
+  ) => DirectiveValidationFailure[]
+> = {
+  max_grid_window: validateMaxGridWindowAdjustment,
+  minimum_battery_reserve: validateReserveAdjustment,
+  no_charge_window: validateWindowAdjustmentHours,
+  no_discharge_window: validateWindowAdjustmentHours,
+  solar_reduction: validateSolarReductionAdjustment,
+};
+
+function validateActiveAdjustment(
+  interpretation: AppliedInterpretation,
+  scenario: Scenario
+): DirectiveValidationFailure[] {
+  return ACTIVE_ADJUSTMENT_VALIDATORS[interpretation.directive_type](
+    interpretation,
+    scenario
+  );
+}
+
+function validateNoOpRule(
+  interpretation: DirectiveInterpretation
+): DirectiveValidationFailure[] {
+  const failures: DirectiveValidationFailure[] = [];
+  if (interpretation.applies) {
+    failures.push(
+      failure(
+        "no_op_applies",
+        "A no_op directive must have applies = false.",
+        interpretation.note_index
+      )
+    );
+  }
+  if (interpretation.structured_adjustment !== null) {
+    failures.push(
+      failure(
+        "no_op_has_adjustment",
+        "A no_op directive must not carry a structured adjustment.",
+        interpretation.note_index
+      )
+    );
+  }
+  return failures;
+}
+
+function validateAppliedShape(
+  interpretation: AppliedInterpretation
+): DirectiveValidationFailure[] | null {
+  if (!interpretation.applies) {
+    return [];
+  }
+  if (interpretation.structured_adjustment === null) {
+    return [
+      failure(
+        "non_no_op_missing_adjustment",
+        `An applied "${interpretation.directive_type}" directive must carry a structured adjustment.`,
+        interpretation.note_index
+      ),
+    ];
+  }
+  return null;
+}
+
+function validateDirectiveRules(
+  interpretation: DirectiveInterpretation,
+  scenario: Scenario
+): DirectiveValidationFailure[] {
+  if (interpretation.directive_type === "no_op") {
+    return validateNoOpRule(interpretation);
+  }
+  if (!VALID_ACTIVE_DIRECTIVE_TYPES.has(interpretation.directive_type)) {
+    return [
+      failure(
+        "invalid_directive_type",
+        `Unknown directive type "${interpretation.directive_type}".`,
+        interpretation.note_index
+      ),
+    ];
+  }
+  const shapeFailures = validateAppliedShape(interpretation);
+  if (shapeFailures) {
+    return shapeFailures;
+  }
+  return validateActiveAdjustment(interpretation, scenario);
+}
+
+// ---------------------------------------------------------------------------
+// List-level checks
+// ---------------------------------------------------------------------------
+
+function checkNoteCoverage(
+  interpretations: readonly DirectiveInterpretation[],
+  noteCount: number
+): DirectiveValidationFailure[] {
+  if (interpretations.length !== noteCount) {
+    return [
+      failure(
+        "count_mismatch",
+        `Expected exactly ${noteCount} interpretations (one per operator note), got ${interpretations.length}.`
+      ),
+    ];
+  }
+  return [];
 }
 
 function validateNoteIndex(
@@ -210,69 +370,9 @@ function validateNoteIndex(
   return [];
 }
 
-function validateDirectiveRules(
-  interpretation: DirectiveInterpretation,
-  scenario: Scenario
-): DirectiveValidationFailure[] {
-  const { note_index, directive_type, applies, structured_adjustment } =
-    interpretation;
-
-  if (
-    !ACTIVE_DIRECTIVE_KINDS.has(directive_type) &&
-    directive_type !== "no_op"
-  ) {
-    return [
-      failure(
-        "invalid_directive_type",
-        `Unknown directive type "${directive_type}".`,
-        note_index
-      ),
-    ];
-  }
-
-  if (directive_type === "no_op") {
-    const failures: DirectiveValidationFailure[] = [];
-    if (applies) {
-      failures.push(
-        failure(
-          "no_op_applies",
-          "A no_op directive must have applies = false.",
-          note_index
-        )
-      );
-    }
-    if (structured_adjustment !== null) {
-      failures.push(
-        failure(
-          "no_op_has_adjustment",
-          "A no_op directive must not carry a structured adjustment.",
-          note_index
-        )
-      );
-    }
-    return failures;
-  }
-
-  if (!applies) {
-    return [];
-  }
-
-  if (structured_adjustment === null) {
-    return [
-      failure(
-        "non_no_op_missing_adjustment",
-        `An applied "${directive_type}" directive must carry a structured adjustment.`,
-        note_index
-      ),
-    ];
-  }
-
-  return validateActiveAdjustment(
-    interpretation,
-    structured_adjustment,
-    scenario
-  );
-}
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 export function validateDirectiveInterpretations(input: {
   readonly scenario: Scenario;
@@ -297,9 +397,34 @@ export function validateDirectiveInterpretations(input: {
   }
 
   return {
-    failures: [...new Set(failures)],
+    failures: collectUniqueFailures(failures),
     ok: failures.length === 0,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Scenario validation
+// ---------------------------------------------------------------------------
+
+function validateHourEnergy(
+  hour: Hour,
+  failures: DirectiveValidationFailure[]
+): void {
+  if (hour.demand_kwh < 0) {
+    failures.push(
+      failure("negative_demand", `Hour ${hour.hour} has negative demand.`)
+    );
+  }
+  if (hour.solar_kwh < 0) {
+    failures.push(
+      failure("negative_solar", `Hour ${hour.hour} has negative solar.`)
+    );
+  }
+  if (hour.tariff_bdt_per_kwh < 0) {
+    failures.push(
+      failure("negative_tariff", `Hour ${hour.hour} has negative tariff.`)
+    );
+  }
 }
 
 function validateHourIndex(
@@ -340,27 +465,6 @@ function validateHourIndex(
     );
   }
   return hour.hour;
-}
-
-function validateHourEnergy(
-  hour: Hour,
-  failures: DirectiveValidationFailure[]
-): void {
-  if (hour.demand_kwh < 0) {
-    failures.push(
-      failure("negative_demand", `Hour ${hour.hour} has negative demand.`)
-    );
-  }
-  if (hour.solar_kwh < 0) {
-    failures.push(
-      failure("negative_solar", `Hour ${hour.hour} has negative solar.`)
-    );
-  }
-  if (hour.tariff_bdt_per_kwh < 0) {
-    failures.push(
-      failure("negative_tariff", `Hour ${hour.hour} has negative tariff.`)
-    );
-  }
 }
 
 function validateBatteryBounds(
@@ -410,7 +514,7 @@ export function validateScenario(
   validateBatteryBounds(battery, failures);
 
   return {
-    failures: [...new Set(failures)],
+    failures: collectUniqueFailures(failures),
     ok: failures.length === 0,
   };
 }

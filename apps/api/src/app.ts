@@ -1,9 +1,11 @@
 import { trpcServer } from "@hono/trpc-server";
+import { EnergyAppError } from "@repo/energy/errors";
 import { appRouter } from "@repo/trpc/server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { healthRoutes } from "./routes/health.ts";
+import { optimizeEnergyRoutes } from "./routes/optimize-energy.ts";
 
 const app = new Hono();
 
@@ -24,12 +26,18 @@ app.use(
 );
 
 app.route("/health", healthRoutes);
+app.route("/optimize-energy", optimizeEnergyRoutes);
 
 app.notFound((c) =>
   c.json({ error: { message: "Not found", status: 404 } }, 404)
 );
 
 app.onError((err, c) => {
+  if (err instanceof EnergyAppError) {
+    const pub = err.toPublicResponse();
+    return c.json({ error: pub }, pub.status as 422 | 500);
+  }
+
   console.error(err);
 
   return c.json(

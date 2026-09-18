@@ -1,6 +1,6 @@
 import loadHighs from "highs";
 
-import { OptimizationError } from "../errors/optimization-error.ts";
+import { OptimizationError } from "../errors/index.ts";
 
 export type LpSense = "Minimize" | "Maximize";
 
@@ -70,7 +70,6 @@ const STATUS_MAP: Readonly<Record<string, LpSolveStatus>> = {
 function formatNumber(value: number): string {
   if (!Number.isFinite(value)) {
     throw new OptimizationError(
-      "INVALID_INPUT",
       `Cannot serialise non-finite number ${String(value)}.`
     );
   }
@@ -188,7 +187,12 @@ function runHighs(highs: HighsInstance, lpString: string): HighsLegacyResult {
       output_flag: false,
     }) as HighsLegacyResult;
   } catch (error) {
-    throw OptimizationError.wrap("HiGHS threw while solving the model.", error);
+    const optimizationError = new OptimizationError(
+      "HiGHS threw while solving the model.",
+      String(error)
+    );
+    optimizationError.cause = error;
+    throw optimizationError;
   }
 }
 
@@ -198,18 +202,18 @@ function requireOptimal(status: LpSolveStatus, rawStatus: string): void {
   }
   if (status === "Infeasible") {
     throw new OptimizationError(
-      "INFEASIBLE_MODEL",
+      "The optimization problem is infeasible under the given constraints.",
       `HiGHS reported an infeasible model (status ${rawStatus}).`
     );
   }
   if (status === "Unbounded") {
     throw new OptimizationError(
-      "UNBOUNDED_MODEL",
+      "The optimization problem is unbounded.",
       `HiGHS reported an unbounded model (status ${rawStatus}).`
     );
   }
   throw new OptimizationError(
-    "SOLVER_FAILED",
+    "The energy optimization solver failed to generate a feasible schedule.",
     `HiGHS finished with status ${rawStatus}.`
   );
 }
