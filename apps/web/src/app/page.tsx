@@ -7,8 +7,8 @@ export default function HomePage() {
       {/* Top Application Header */}
       <header className="flex flex-wrap items-center justify-between gap-4 border-border/60 border-b pb-5">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-white text-zinc-950 shadow-sm">
-            <Zap className="size-5 fill-current text-zinc-950" />
+          <div className="flex size-10 items-center justify-center rounded-xl bg-white shadow-sm">
+            <Zap className="size-5 fill-amber-400 text-amber-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">

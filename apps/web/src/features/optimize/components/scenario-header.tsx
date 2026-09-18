@@ -17,7 +17,6 @@ import {
   FolderOpen,
   Layers,
   RotateCcw,
-  Zap,
 } from "lucide-react";
 import { SAMPLE_CASES } from "../sample-cases.ts";
 import type { SampleCase, ScenarioInput } from "../types.ts";
@@ -65,15 +64,10 @@ export function ScenarioHeader({
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-panel">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary shadow-glow-solar">
-            <Zap className="size-5" />
-          </div>
-          <div>
-            <h2 className="font-display font-semibold text-2xl tracking-tight">
-              Scenario Configuration
-            </h2>
-          </div>
+        <div>
+          <h2 className="font-display font-semibold text-2xl tracking-tight">
+            Scenario Configuration
+          </h2>
         </div>
 
         {/* Preset Selector & Quick Actions */}
