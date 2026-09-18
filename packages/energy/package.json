@@ -5,13 +5,15 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./directives": "./src/directives/index.ts",
     "./domain": "./src/domain/index.ts",
     "./errors": "./src/errors/index.ts",
     "./interpreter": "./src/interpreter/index.ts",
-    "./directives": "./src/directives/index.ts",
     "./llm": "./src/llm/index.ts",
+    "./optimizer": "./src/optimizer/index.ts",
     "./schema": "./src/schema/index.ts",
-    "./service": "./src/service/index.ts"
+    "./service": "./src/service/index.ts",
+    "./validation": "./src/validation/index.ts"
   },
   "scripts": {
     "clean": "rm -rf .turbo",

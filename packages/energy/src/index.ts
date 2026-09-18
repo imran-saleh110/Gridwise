@@ -103,3 +103,4 @@ export {
   type OptimizeEnergyServiceDependencies,
   type ScheduleValidator,
 } from "./service/index.ts";
+export { IndependentScheduleValidator } from "./validation/index.ts";

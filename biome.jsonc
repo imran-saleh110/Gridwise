@@ -35,8 +35,10 @@
         "packages/energy/src/index.ts",
         "packages/energy/src/interpreter/index.ts",
         "packages/energy/src/llm/index.ts",
+        "packages/energy/src/optimizer/index.ts",
         "packages/energy/src/schema/index.ts",
         "packages/energy/src/service/index.ts",
+        "packages/energy/src/validation/index.ts",
         "packages/trpc/src/index.ts",
         "packages/trpc/src/server/index.ts"
       ],

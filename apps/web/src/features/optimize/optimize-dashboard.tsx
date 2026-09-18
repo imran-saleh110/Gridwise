@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@repo/ui/components/badge";
-import { Activity } from "lucide-react";
+import { Activity, Sparkles } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { AggregateStats } from "./components/aggregate-stats.tsx";
 import { BatteryConfigCard } from "./components/battery-config-card.tsx";
@@ -32,21 +32,28 @@ async function fetchLiveOptimization(
     method: "POST",
   });
 
+  const body = (await res.json().catch(() => ({}))) as {
+    error?: { message?: string; status?: number; code?: string };
+  } & OptimizationResponse;
+
   if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    throw new Error(
-      errBody.message ||
-        `API returned HTTP status ${res.status}: ${res.statusText}`
-    );
+    const errorMsg =
+      body.error?.message ||
+      (typeof body === "object" &&
+      "message" in body &&
+      typeof body.message === "string"
+        ? body.message
+        : `Server returned HTTP status ${res.status}: ${res.statusText}`);
+    throw new Error(errorMsg);
   }
 
-  return res.json();
+  return body;
 }
 
 export function OptimizeDashboard() {
-  // Initial default state is SAMPLE-01
   const [defaultSample] = SAMPLE_CASES;
 
+  // Scenario input state initialized with Sample 01 preset values
   const [scenario, setScenario] = useState<ScenarioInput>(
     defaultSample
       ? JSON.parse(JSON.stringify(defaultSample.input))
@@ -73,24 +80,17 @@ export function OptimizeDashboard() {
     defaultSample?.id ?? "SAMPLE-01"
   );
 
+  // Live optimization response (populated only by live backend API execution)
   const [optimizationResponse, setOptimizationResponse] =
-    useState<OptimizationResponse | null>(
-      defaultSample
-        ? JSON.parse(JSON.stringify(defaultSample.expected_output))
-        : null
-    );
+    useState<OptimizationResponse | null>(null);
 
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [executionMode, setExecutionMode] = useState<
-    "auto" | "live" | "fixture"
-  >("auto");
-  const [apiEndpoint, setApiEndpoint] = useState<string>(
-    process.env.NEXT_PUBLIC_API_URL
-      ? `${process.env.NEXT_PUBLIC_API_URL}/optimize-energy`
-      : "http://localhost:3001/optimize-energy"
-  );
-  const [executionTimeMs, setExecutionTimeMs] = useState<number | null>(45);
+  const [executionTimeMs, setExecutionTimeMs] = useState<number | null>(null);
+
+  const apiEndpoint = process.env.NEXT_PUBLIC_API_URL
+    ? `${process.env.NEXT_PUBLIC_API_URL}/optimize-energy`
+    : "http://localhost:3001/optimize-energy";
 
   // Independent Schedule Replay Validation
   const validationReport: ScheduleValidationReport | null = useMemo(() => {
@@ -100,18 +100,16 @@ export function OptimizeDashboard() {
     return validateSchedule(scenario, optimizationResponse);
   }, [scenario, optimizationResponse]);
 
-  // Handler: Select a Preset Sample Case
+  // Handler: Select a Preset Sample Case (populates only the inputs)
   const handleSelectCase = useCallback((sampleCase: SampleCase) => {
     setCurrentCaseId(sampleCase.id);
     setScenario(JSON.parse(JSON.stringify(sampleCase.input)));
-    setOptimizationResponse(
-      JSON.parse(JSON.stringify(sampleCase.expected_output))
-    );
+    setOptimizationResponse(null);
     setErrorMessage(null);
     setExecutionTimeMs(null);
   }, []);
 
-  // Handler: Reset to default
+  // Handler: Reset to default sample
   const handleReset = useCallback(() => {
     if (defaultSample) {
       handleSelectCase(defaultSample);
@@ -138,53 +136,28 @@ export function OptimizeDashboard() {
   const handleImportJson = useCallback((imported: ScenarioInput) => {
     setScenario(imported);
     setCurrentCaseId("CUSTOM");
+    setOptimizationResponse(null);
     setErrorMessage(null);
+    setExecutionTimeMs(null);
   }, []);
 
-  // Handler: Run Optimization
+  // Handler: Run Live Optimization
   const handleOptimize = async () => {
     setIsOptimizing(true);
     setErrorMessage(null);
     const startTime = performance.now();
 
     try {
-      if (executionMode === "fixture") {
-        await new Promise((resolve) => setTimeout(resolve, 350));
-        const matched = SAMPLE_CASES.find((c) => c.id === scenario.scenario_id);
-        const targetOutput =
-          matched?.expected_output ?? defaultSample?.expected_output;
-        if (targetOutput) {
-          setOptimizationResponse(JSON.parse(JSON.stringify(targetOutput)));
-        }
-        setExecutionTimeMs(Math.round(performance.now() - startTime));
-        return;
-      }
-
-      try {
-        const data = await fetchLiveOptimization(apiEndpoint, scenario);
-        setOptimizationResponse(data);
-        setExecutionTimeMs(Math.round(performance.now() - startTime));
-      } catch (fetchErr: unknown) {
-        if (executionMode === "live") {
-          throw fetchErr;
-        }
-
-        const matched = SAMPLE_CASES.find((c) => c.id === scenario.scenario_id);
-        const fallback =
-          matched?.expected_output ?? defaultSample?.expected_output;
-        if (fallback) {
-          setOptimizationResponse(JSON.parse(JSON.stringify(fallback)));
-          setExecutionTimeMs(Math.round(performance.now() - startTime));
-        } else {
-          throw fetchErr;
-        }
-      }
+      const data = await fetchLiveOptimization(apiEndpoint, scenario);
+      setOptimizationResponse(data);
+      setExecutionTimeMs(Math.round(performance.now() - startTime));
     } catch (err: unknown) {
       const msg =
         err instanceof Error
           ? err.message
-          : "Failed to execute energy optimization solver.";
+          : "Failed to connect to the energy optimization backend.";
       setErrorMessage(msg);
+      setOptimizationResponse(null);
     } finally {
       setIsOptimizing(false);
     }
@@ -199,8 +172,6 @@ export function OptimizeDashboard() {
         onImportJson={handleImportJson}
         onReset={handleReset}
         onSelectCase={handleSelectCase}
-        scenario={scenario}
-        setScenario={setScenario}
       />
 
       {/* 2. Configuration Grid: Battery Storage & Operator Notes */}
@@ -224,16 +195,13 @@ export function OptimizeDashboard() {
         onChange={(hours) => setScenario((prev) => ({ ...prev, hours }))}
       />
 
-      {/* 4. Optimization Engine Controls */}
+      {/* 4. Live Optimization Engine Controls */}
       <OptimizationControls
         apiEndpoint={apiEndpoint}
         errorMessage={errorMessage}
-        executionMode={executionMode}
         executionTimeMs={executionTimeMs}
         isOptimizing={isOptimizing}
         onOptimize={handleOptimize}
-        setApiEndpoint={setApiEndpoint}
-        setExecutionMode={setExecutionMode}
       />
 
       {/* 5. Results & Dispatch Solution View */}
@@ -255,7 +223,7 @@ export function OptimizeDashboard() {
           {/* Aggregates Summary Stats */}
           <AggregateStats plan={optimizationResponse} scenario={scenario} />
 
-          {/* Independent Schedule Replay Validator (Teammate D Core Gate) */}
+          {/* Independent Schedule Replay Validator */}
           <ValidatorReportCard
             plan={optimizationResponse}
             validationReport={validationReport}
@@ -276,7 +244,26 @@ export function OptimizeDashboard() {
             scenario={scenario}
           />
         </div>
-      ) : null}
+      ) : (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border/80 border-dashed bg-card/40 p-10 text-center">
+          <div className="flex size-12 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary">
+            <Sparkles className="size-6" />
+          </div>
+          <div>
+            <h4 className="font-display font-semibold text-base text-foreground">
+              Ready to Optimize
+            </h4>
+            <p className="max-w-md text-muted-foreground text-xs">
+              Configure scenario parameters above and click{" "}
+              <span className="font-semibold text-primary">
+                Optimize Energy
+              </span>{" "}
+              to generate the 24-hour cost-minimal microgrid dispatch schedule
+              via Groq LLM and the HiGHS solver.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

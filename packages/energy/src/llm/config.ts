@@ -3,26 +3,28 @@ import { z } from "zod";
 /**
  * Environment configuration for the LLM directive interpreter.
  *
- * Read from server-side environment variables only (`LLM_*` — never
+ * Read from server-side environment variables only (`GROQ_API_KEY`, `LLM_*` — never
  * `NEXT_PUBLIC_*`). The API key stays on the server and is never logged or
  * returned to clients.
  *
- * Defaults target Grok on the xAI API (an OpenAI-compatible Chat Completions
- * endpoint). Point `LLM_BASE_URL` at Groq, DeepSeek, OpenRouter, etc. as needed.
+ * Defaults target Groq on the Groq Cloud API (an OpenAI-compatible Chat Completions
+ * endpoint with ultra-fast inference).
  */
 export const llmEnvSchema = z.object({
-  /** API key for the LLM provider (xAI key for Grok). Required to actually interpret notes. */
+  /** API key for Groq (GROQ_API_KEY or LLM_API_KEY). Required to interpret notes with live LLM. */
+  GROQ_API_KEY: z.string().min(1).optional(),
+  /** Fallback API key identifier. */
   LLM_API_KEY: z.string().min(1).optional(),
-  /** Base URL of an OpenAI-compatible Chat Completions API. */
-  LLM_BASE_URL: z.string().url().default("https://api.x.ai/v1"),
+  /** Base URL of an OpenAI-compatible Chat Completions API. Defaults to Groq. */
+  LLM_BASE_URL: z.string().url().default("https://api.groq.com/openai/v1"),
   /** Maximum number of transport-level retries (network / 5xx / 429) per request. */
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(10).default(2),
-  /** Model identifier to call (Grok model released via the xAI API). */
-  LLM_MODEL: z.string().min(1).default("grok-4.6"),
-  /** Structured-output strategy: json_schema (schema-enforced) or json_object (prompt-enforced). */
+  /** Model identifier to call on Groq. Defaults to Llama 3.3 70B Versatile. */
+  LLM_MODEL: z.string().min(1).default("llama-3.3-70b-versatile"),
+  /** Structured-output strategy: json_object (prompt-enforced with JSON mode) or json_schema. */
   LLM_RESPONSE_MODE: z
     .enum(["json_schema", "json_object"])
-    .default("json_schema"),
+    .default("json_object"),
   /** Base backoff delay in milliseconds; doubled after each retry. */
   LLM_RETRY_DELAY_MS: z.coerce.number().int().nonnegative().default(500),
   /** Per-request timeout in milliseconds. */
@@ -37,5 +39,11 @@ export type LLMConfig = z.infer<typeof llmEnvSchema>;
  * startup instead of mid-request.
  */
 export function getLLMConfig(env: NodeJS.ProcessEnv = process.env): LLMConfig {
-  return llmEnvSchema.parse(env);
+  const parsed = llmEnvSchema.parse(env);
+  const resolvedApiKey = parsed.GROQ_API_KEY ?? parsed.LLM_API_KEY;
+  return {
+    ...parsed,
+    GROQ_API_KEY: resolvedApiKey,
+    LLM_API_KEY: resolvedApiKey,
+  };
 }

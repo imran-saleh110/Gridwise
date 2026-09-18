@@ -1,55 +1,70 @@
 import {
-  DirectiveInterpretationError,
   EnergyAppError,
   InvalidScenarioError,
-  OptimizationError,
-  ScheduleValidationError,
+  LLMProviderError,
 } from "@repo/energy/errors";
-import type { DirectiveInterpreter } from "@repo/energy/interpreter";
+import {
+  createLLMDirectiveInterpreter,
+  type DirectiveInterpreter,
+} from "@repo/energy/interpreter";
+import { getLLMConfig } from "@repo/energy/llm";
+import {
+  createEnergyOptimizer,
+  createEnergySolver,
+} from "@repo/energy/optimizer";
 import { scenarioSchema } from "@repo/energy/schema";
 import {
   type EnergyOptimizer,
   OptimizeEnergyService,
   type ScheduleValidator,
 } from "@repo/energy/service";
+import { IndependentScheduleValidator } from "@repo/energy/validation";
 import type { Context } from "hono";
 import { Hono } from "hono";
 
-// Default unconfigured dependencies until concrete teammate implementations are wired
-const defaultInterpreter: DirectiveInterpreter = {
-  interpret() {
-    return Promise.reject(
-      new DirectiveInterpretationError(
-        "Directive interpreter is not configured."
-      )
-    );
-  },
-};
+function createProductionInterpreter(): DirectiveInterpreter {
+  const config = getLLMConfig();
+  if (!(config.GROQ_API_KEY || config.LLM_API_KEY)) {
+    return {
+      interpret: () =>
+        Promise.reject(
+          new LLMProviderError(
+            "The LLM provider API key is not configured.",
+            "GROQ_API_KEY or LLM_API_KEY must be set in the server environment before calling the directive interpreter."
+          )
+        ),
+    };
+  }
+  return createLLMDirectiveInterpreter({ config });
+}
 
-const defaultOptimizer: EnergyOptimizer = {
-  optimize() {
-    return Promise.reject(
-      new OptimizationError("Energy optimizer is not configured.")
-    );
-  },
-};
+function createProductionOptimizer(): EnergyOptimizer {
+  return {
+    optimize: async (scenario, directives) => {
+      const solver = await createEnergySolver();
+      const opt = createEnergyOptimizer(solver);
+      return opt.optimize(scenario, directives);
+    },
+  };
+}
 
-const defaultValidator: ScheduleValidator = {
-  validate() {
-    return Promise.reject(
-      new ScheduleValidationError("Schedule validator is not configured.")
-    );
-  },
-};
+const defaultValidator: ScheduleValidator = new IndependentScheduleValidator();
 
-let activeService = new OptimizeEnergyService({
-  interpreter: defaultInterpreter,
-  optimizer: defaultOptimizer,
-  validator: defaultValidator,
-});
+let activeService: OptimizeEnergyService | null = null;
+
+function getActiveService(): OptimizeEnergyService {
+  if (!activeService) {
+    activeService = new OptimizeEnergyService({
+      interpreter: createProductionInterpreter(),
+      optimizer: createProductionOptimizer(),
+      validator: defaultValidator,
+    });
+  }
+  return activeService;
+}
 
 /**
- * Injects a concrete OptimizeEnergyService instance (e.g. for testing or production wiring).
+ * Injects a concrete OptimizeEnergyService instance (e.g. for testing or custom wiring).
  */
 export function setOptimizeEnergyService(service: OptimizeEnergyService): void {
   activeService = service;
@@ -90,7 +105,8 @@ async function handleOptimizeEnergy(c: Context) {
 
   // 3. Orchestrate optimization through the service boundary
   try {
-    const result = await activeService.execute(scenario);
+    const service = getActiveService();
+    const result = await service.execute(scenario);
 
     // 4. Return flat challenge response contract preserving all 24 hourly entries
     return c.json(

@@ -547,10 +547,10 @@ describe("createLLMDirectiveInterpreter", () => {
 });
 
 describe("LLM config defaults", () => {
-  test("targets Grok on xAI by default", () => {
+  test("targets Groq by default", () => {
     const config = getLLMConfig({} as NodeJS.ProcessEnv);
-    expect(config.LLM_BASE_URL).toBe("https://api.x.ai/v1");
-    expect(config.LLM_MODEL).toBe("grok-4.6");
-    expect(config.LLM_RESPONSE_MODE).toBe("json_schema");
+    expect(config.LLM_BASE_URL).toBe("https://api.groq.com/openai/v1");
+    expect(config.LLM_MODEL).toBe("llama-3.3-70b-versatile");
+    expect(config.LLM_RESPONSE_MODE).toBe("json_object");
   });
 });
