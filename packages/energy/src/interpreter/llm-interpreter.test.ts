@@ -151,7 +151,7 @@ describe("LLMDirectiveInterpreter", () => {
     expect(request.user).toContain("Use half solar at noon");
     expect(request.user).toContain("capacity_kwh=200");
     expect(request.user).toContain('Set the "note_index" field to 0');
-    expect(request.user).toContain("24-hour table");
+    expect(request.user).toContain('Scenario "test-scenario"');
     expect(request.jsonSchema).toBeDefined();
   });
 
@@ -550,7 +550,7 @@ describe("LLM config defaults", () => {
   test("targets Groq by default", () => {
     const config = getLLMConfig({} as NodeJS.ProcessEnv);
     expect(config.LLM_BASE_URL).toBe("https://api.groq.com/openai/v1");
-    expect(config.LLM_MODEL).toBe("openai/gpt-oss-120b");
+    expect(config.LLM_MODEL).toBe("openai/gpt-oss-20b");
     expect(config.LLM_RESPONSE_MODE).toBe("json_object");
   });
 });

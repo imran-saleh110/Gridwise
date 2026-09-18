@@ -176,6 +176,8 @@ export function buildDirectiveInterpretationJSONSchema(): Record<
   };
 }
 
+const JSON_CODEBLOCK_REGEX = /```(?:json)?\s*([\s\S]*?)\s*```/;
+
 /**
  * Parses and validates raw LLM completion text into a DirectiveInterpretation.
  * Returns null when the text is not valid JSON or violates the directive
@@ -192,9 +194,40 @@ export function parseDirectiveInterpretationOutput(
   try {
     parsed = JSON.parse(contentText);
   } catch {
+    const match = contentText.match(JSON_CODEBLOCK_REGEX);
+    if (match?.[1]) {
+      try {
+        parsed = JSON.parse(match[1]);
+      } catch {
+        return null;
+      }
+    } else {
+      return null;
+    }
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
     return null;
   }
 
-  const result = directiveInterpretationSchema.safeParse(parsed);
+  const rawObj = parsed as Record<string, unknown>;
+
+  // Handle LLMs outputting "type" instead of "directive_type"
+  if ("type" in rawObj && !("directive_type" in rawObj)) {
+    rawObj.directive_type = rawObj.type;
+    rawObj.type = undefined;
+  }
+
+  // Handle LLMs omitting applies / structured_adjustment for no_op
+  if (rawObj.directive_type === "no_op") {
+    if (rawObj.applies === undefined) {
+      rawObj.applies = false;
+    }
+    if (rawObj.structured_adjustment === undefined) {
+      rawObj.structured_adjustment = null;
+    }
+  }
+
+  const result = directiveInterpretationSchema.safeParse(rawObj);
   return result.success ? result.data : null;
 }

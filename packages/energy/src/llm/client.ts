@@ -59,8 +59,10 @@ export interface OpenAICompatibleClientOptions {
 
 const RETRYABLE_HTTP_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 const TRAILING_SLASHES = /\/+$/;
+const SECONDS_SUFFIX = /s$/;
 
 interface LlmTransportErrorOptions extends ErrorOptions {
+  readonly retryAfterMs?: number;
   readonly retryable?: boolean;
   readonly status?: number;
 }
@@ -68,12 +70,14 @@ interface LlmTransportErrorOptions extends ErrorOptions {
 /** Internal transport error used to decide whether to retry. Never escapes the client. */
 class LlmTransportError extends Error {
   readonly retryable: boolean;
+  readonly retryAfterMs: number | undefined;
   readonly status: number | undefined;
 
   constructor(message: string, options: LlmTransportErrorOptions = {}) {
     super(message, options);
     this.name = "LlmTransportError";
     this.retryable = options.retryable ?? false;
+    this.retryAfterMs = options.retryAfterMs;
     this.status = options.status;
   }
 }
@@ -158,7 +162,15 @@ export class OpenAICompatibleClient implements LLMClient {
           return;
         }
         attempt += 1;
-        await sleep(this.retryDelayMs * 2 ** (attempt - 1));
+        let delay: number;
+        if (err.retryAfterMs !== undefined && err.retryAfterMs > 0) {
+          delay = err.retryAfterMs;
+        } else if (err.status === 429) {
+          delay = Math.max(this.retryDelayMs, 3000) * attempt;
+        } else {
+          delay = this.retryDelayMs * 2 ** (attempt - 1);
+        }
+        await sleep(delay);
         return attemptSend();
       }
     };
@@ -218,8 +230,26 @@ export class OpenAICompatibleClient implements LLMClient {
       );
 
       if (!response.ok) {
+        let retryAfterMs: number | undefined;
+        const retryHeader = response.headers.get("retry-after");
+        const resetHeader = response.headers.get("x-ratelimit-reset-tokens");
+        if (retryHeader) {
+          const parsedSec = Number.parseFloat(retryHeader);
+          if (!Number.isNaN(parsedSec) && parsedSec > 0) {
+            retryAfterMs = Math.ceil(parsedSec * 1000) + 300;
+          }
+        } else if (resetHeader) {
+          const parsedSec = Number.parseFloat(
+            resetHeader.replace(SECONDS_SUFFIX, "")
+          );
+          if (!Number.isNaN(parsedSec) && parsedSec > 0) {
+            retryAfterMs = Math.ceil(parsedSec * 1000) + 300;
+          }
+        }
+
         const message = `LLM provider returned HTTP ${response.status}.`;
         throw new LlmTransportError(message, {
+          retryAfterMs,
           retryable: RETRYABLE_HTTP_STATUS.has(response.status),
           status: response.status,
         });

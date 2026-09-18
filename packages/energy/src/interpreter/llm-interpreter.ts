@@ -68,11 +68,23 @@ export class LLMDirectiveInterpreter implements DirectiveInterpreter {
       );
     }
 
-    const interpretations = await Promise.all(
-      notes.map((note, index) =>
-        this.interpretNote(note, index, notes.length, scenario)
-      )
-    );
+    const interpretations: DirectiveInterpretation[] = [];
+    for (let index = 0; index < notes.length; index += 1) {
+      if (index > 0) {
+        // biome-ignore lint/performance/noAwaitInLoops: sequential pacing avoids token-bucket burst limits on LLM APIs
+        await sleep(350);
+      }
+      const note = notes[index];
+      if (note !== undefined) {
+        const interpretation = await this.interpretNote(
+          note,
+          index,
+          notes.length,
+          scenario
+        );
+        interpretations.push(interpretation);
+      }
+    }
 
     return interpretations;
   }

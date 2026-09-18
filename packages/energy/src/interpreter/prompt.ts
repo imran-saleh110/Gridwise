@@ -66,13 +66,6 @@ export function buildUserPrompt(
   totalNotes: number,
   scenario: Scenario
 ): string {
-  const hoursTable = scenario.hours
-    .map(
-      (h) =>
-        `${h.hour} | demand ${h.demand_kwh} | solar ${h.solar_kwh} | tariff ${h.tariff_bdt_per_kwh}`
-    )
-    .join("\n");
-
   const b = scenario.battery;
 
   return `Operator note ${noteIndex + 1} of ${totalNotes}:
@@ -82,9 +75,6 @@ Interpret ONLY this note for today's 24-hour energy schedule. The other notes mu
 
 Scenario "${scenario.scenario_id}".
 Battery: capacity_kwh=${b.capacity_kwh}, initial_energy_kwh=${b.initial_energy_kwh}, minimum_energy_kwh=${b.minimum_energy_kwh}, max_charge_kwh_per_hour=${b.max_charge_kwh_per_hour}, max_discharge_kwh_per_hour=${b.max_discharge_kwh_per_hour}.
-
-24-hour table (hour | demand_kwh | solar_kwh | tariff_bdt_per_kwh):
-${hoursTable}
 
 Return exactly ONE directive interpretation JSON object matching the schema. Set the "note_index" field to ${noteIndex}. No markdown fences, no extra text.`;
 }
