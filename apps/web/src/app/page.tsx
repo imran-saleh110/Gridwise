@@ -1,6 +1,4 @@
-import { Palette, Zap } from "lucide-react";
-import Link from "next/link";
-import { HealthStatus } from "@/features/health/health-status.tsx";
+import { Zap } from "lucide-react";
 import { OptimizeDashboard } from "@/features/optimize/optimize-dashboard.tsx";
 
 export default function HomePage() {
@@ -9,8 +7,8 @@ export default function HomePage() {
       {/* Top Application Header */}
       <header className="flex flex-wrap items-center justify-between gap-4 border-border/60 border-b pb-5">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl border border-primary/40 bg-primary/10 text-primary shadow-glow-solar">
-            <Zap className="size-5 fill-current" />
+          <div className="flex size-10 items-center justify-center rounded-xl bg-white text-zinc-950 shadow-sm">
+            <Zap className="size-5 fill-current text-zinc-950" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -25,17 +23,6 @@ export default function HomePage() {
               Campus Microgrid Energy Optimization & Dispatch Control Room
             </p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Link
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-secondary/80 px-3 py-1.5 font-medium text-muted-foreground text-xs transition hover:border-primary/40 hover:text-foreground"
-            href="/design-system"
-          >
-            <Palette className="size-3.5 text-primary" />
-            <span>Design System</span>
-          </Link>
-          <HealthStatus />
         </div>
       </header>
 

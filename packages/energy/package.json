@@ -3,10 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-<<<<<<< HEAD
-  "main": "./src/index.ts",
-  "types": "./src/index.ts"
-=======
   "exports": {
     "./domain": "./src/domain/index.ts",
     "./schema": "./src/schema/index.ts",
@@ -26,5 +22,4 @@
     "@types/bun": "^1.4.2",
     "typescript": "^5.9.3"
   }
->>>>>>> Farhana
 }

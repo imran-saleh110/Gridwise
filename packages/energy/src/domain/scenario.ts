@@ -19,8 +19,8 @@
  * - `tariff_bdt_per_kwh`: grid electricity purchase price in BDT per kWh.
  */
 export interface Hour {
-  readonly hour: number;
   readonly demand_kwh: number;
+  readonly hour: number;
   readonly solar_kwh: number;
   readonly tariff_bdt_per_kwh: number;
 }
@@ -37,12 +37,12 @@ export interface Battery {
   readonly capacity_kwh: number;
   /** Battery state of charge at the start of hour 0 (kWh). */
   readonly initial_energy_kwh: number;
-  /** Hard minimum battery level that must never be violated (kWh). */
-  readonly minimum_energy_kwh: number;
   /** Maximum energy that can be added in a single hour (kWh). */
   readonly max_charge_kwh_per_hour: number;
   /** Maximum energy that can be removed in a single hour (kWh). */
   readonly max_discharge_kwh_per_hour: number;
+  /** Hard minimum battery level that must never be violated (kWh). */
+  readonly minimum_energy_kwh: number;
 }
 
 /**
@@ -53,18 +53,18 @@ export interface Battery {
  *   - hours: exactly 24 entries covering hour values 0..23, no duplicates
  */
 export interface Scenario {
-  /** Unique identifier for this optimization run. */
-  readonly scenario_id: string;
-  /**
-   * Natural-language instructions from the campus operator.
-   * Between 1 and 3 entries; each string is non-empty.
-   */
-  readonly operator_notes: readonly string[];
+  /** Battery storage configuration for this scenario. */
+  readonly battery: Battery;
   /**
    * Per-hour energy data for the 24-hour window.
    * Exactly 24 entries; hour values cover 0..23.
    */
   readonly hours: readonly Hour[];
-  /** Battery storage configuration for this scenario. */
-  readonly battery: Battery;
+  /**
+   * Natural-language instructions from the campus operator.
+   * Between 1 and 3 entries; each string is non-empty.
+   */
+  readonly operator_notes: readonly string[];
+  /** Unique identifier for this optimization run. */
+  readonly scenario_id: string;
 }

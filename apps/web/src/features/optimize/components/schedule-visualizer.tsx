@@ -57,18 +57,13 @@ export function ScheduleVisualizer({
     <div className="space-y-4">
       {/* Active Hour Quick Metric Strip */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-panel">
-        <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 font-bold font-mono text-primary text-xs">
-            {String(activeHourIndex).padStart(2, "0")}:00
+        <div>
+          <div className="text-muted-foreground text-xs">
+            Selected Hour Analysis
           </div>
-          <div>
-            <div className="text-muted-foreground text-xs">
-              Selected Hour Analysis
-            </div>
-            <span className="font-semibold text-foreground text-sm">
-              Hour {activeHourIndex} ({formatHourLabel(activeHourIndex)})
-            </span>
-          </div>
+          <span className="font-semibold text-foreground text-sm">
+            Hour {activeHourIndex} ({formatHourLabel(activeHourIndex)})
+          </span>
         </div>
 
         {activeInput && activePlan ? (

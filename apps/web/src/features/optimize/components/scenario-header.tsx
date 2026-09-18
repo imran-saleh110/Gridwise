@@ -5,20 +5,18 @@ import { Button } from "@repo/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
-import { EnergyChip } from "@repo/ui/components/energy-chip";
-import { Input } from "@repo/ui/components/input";
 import {
   ChevronDown,
   Download,
   FolderOpen,
   Layers,
   RotateCcw,
-  Sparkles,
   Zap,
 } from "lucide-react";
 import { SAMPLE_CASES } from "../sample-cases.ts";
@@ -30,13 +28,11 @@ interface ScenarioHeaderProps {
   onImportJson: (scenario: ScenarioInput) => void;
   onReset: () => void;
   onSelectCase: (sampleCase: SampleCase) => void;
-  scenario: ScenarioInput;
-  setScenario: React.Dispatch<React.SetStateAction<ScenarioInput>>;
+  scenario?: ScenarioInput;
+  setScenario?: React.Dispatch<React.SetStateAction<ScenarioInput>>;
 }
 
 export function ScenarioHeader({
-  scenario,
-  setScenario,
   currentCaseId,
   onSelectCase,
   onReset,
@@ -74,14 +70,6 @@ export function ScenarioHeader({
             <Zap className="size-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-muted-foreground text-xs uppercase tracking-wider">
-                Microgrid Dispatch
-              </span>
-              <EnergyChip active tone="solar">
-                Live Controller
-              </EnergyChip>
-            </div>
             <h2 className="font-display font-semibold text-2xl tracking-tight">
               Scenario Configuration
             </h2>
@@ -101,37 +89,39 @@ export function ScenarioHeader({
               <ChevronDown className="size-3.5 text-muted-foreground" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80 bg-popover">
-              <DropdownMenuLabel className="font-display text-muted-foreground text-xs">
-                Public Test Cases (Sample 01 - 10)
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {SAMPLE_CASES.map((item) => (
-                <DropdownMenuItem
-                  className="flex cursor-pointer flex-col items-start gap-0.5 py-2 focus:bg-accent"
-                  key={item.id}
-                  onClick={() => onSelectCase(item)}
-                >
-                  <div className="flex w-full items-center justify-between">
-                    <span className="font-medium font-mono text-primary text-xs">
-                      {item.id}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="font-display text-muted-foreground text-xs">
+                  Public Test Cases (Sample 01 - 10)
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {SAMPLE_CASES.map((item) => (
+                  <DropdownMenuItem
+                    className="flex cursor-pointer flex-col items-start gap-0.5 py-2 focus:bg-accent"
+                    key={item.id}
+                    onClick={() => onSelectCase(item)}
+                  >
+                    <div className="flex w-full items-center justify-between">
+                      <span className="font-medium font-mono text-primary text-xs">
+                        {item.id}
+                      </span>
+                      {item.id === currentCaseId ? (
+                        <Badge
+                          className="border-primary/40 text-[10px] text-primary"
+                          variant="outline"
+                        >
+                          Active
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <span className="font-medium text-foreground text-sm">
+                      {item.label}
                     </span>
-                    {item.id === currentCaseId ? (
-                      <Badge
-                        className="border-primary/40 text-[10px] text-primary"
-                        variant="outline"
-                      >
-                        Active
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <span className="font-medium text-foreground text-sm">
-                    {item.label}
-                  </span>
-                  <span className="line-clamp-1 text-[11px] text-muted-foreground">
-                    {item.input.operator_notes[0]}
-                  </span>
-                </DropdownMenuItem>
-              ))}
+                    <span className="line-clamp-1 text-[11px] text-muted-foreground">
+                      {item.input.operator_notes[0]}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -170,30 +160,6 @@ export function ScenarioHeader({
             </span>
           </label>
         </div>
-      </div>
-
-      {/* Scenario ID Input & Active Description */}
-      <div className="flex flex-wrap items-center gap-4 border-border/60 border-t pt-2">
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs">Scenario ID:</span>
-          <Input
-            className="h-8 w-44 font-mono text-xs"
-            onChange={(e) =>
-              setScenario((prev) => ({ ...prev, scenario_id: e.target.value }))
-            }
-            placeholder="e.g. SAMPLE-01"
-            value={scenario.scenario_id}
-          />
-        </div>
-
-        {currentSample?.rationale ? (
-          <div className="flex flex-1 items-center gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-muted-foreground text-xs">
-            <Sparkles className="size-3.5 shrink-0 text-primary" />
-            <span className="line-clamp-1 italic">
-              {currentSample.rationale}
-            </span>
-          </div>
-        ) : null}
       </div>
     </div>
   );

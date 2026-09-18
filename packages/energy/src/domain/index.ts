@@ -2,12 +2,6 @@
 // Import as: import type { Scenario, DirectiveInterpretation, ... } from "@repo/energy/domain"
 
 export type {
-  Battery,
-  Hour,
-  Scenario,
-} from "./scenario.ts";
-
-export type {
   DirectiveInterpretation,
   DirectiveInterpretationList,
   DirectiveType,
@@ -23,10 +17,14 @@ export type {
   SolarReductionAdjustment,
   SolarReductionInterpretation,
 } from "./directive.ts";
-
 export type {
   BatteryAction,
   HourlyPlanEntry,
   OptimizationPlan,
   OptimizationResponse,
 } from "./plan.ts";
+export type {
+  Battery,
+  Hour,
+  Scenario,
+} from "./scenario.ts";

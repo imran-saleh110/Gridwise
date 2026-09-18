@@ -1,5 +1,3 @@
-import { Hono } from "hono";
-import type { Context } from "hono";
 import {
   DirectiveInterpretationError,
   EnergyAppError,
@@ -14,25 +12,33 @@ import {
   OptimizeEnergyService,
   type ScheduleValidator,
 } from "@repo/energy/service";
+import type { Context } from "hono";
+import { Hono } from "hono";
 
 // Default unconfigured dependencies until concrete teammate implementations are wired
 const defaultInterpreter: DirectiveInterpreter = {
-  async interpret() {
-    throw new DirectiveInterpretationError(
-      "Directive interpreter is not configured.",
+  interpret() {
+    return Promise.reject(
+      new DirectiveInterpretationError(
+        "Directive interpreter is not configured."
+      )
     );
   },
 };
 
 const defaultOptimizer: EnergyOptimizer = {
-  async optimize() {
-    throw new OptimizationError("Energy optimizer is not configured.");
+  optimize() {
+    return Promise.reject(
+      new OptimizationError("Energy optimizer is not configured.")
+    );
   },
 };
 
 const defaultValidator: ScheduleValidator = {
-  async validate() {
-    throw new ScheduleValidationError("Schedule validator is not configured.");
+  validate() {
+    return Promise.reject(
+      new ScheduleValidationError("Schedule validator is not configured.")
+    );
   },
 };
 
@@ -65,12 +71,12 @@ async function handleOptimizeEnergy(c: Context) {
     return c.json(
       {
         error: {
+          code: "MALFORMED_REQUEST",
           message: "Malformed JSON payload in request body.",
           status: 400,
-          code: "MALFORMED_REQUEST",
         },
       },
-      400,
+      400
     );
   }
 
@@ -93,34 +99,31 @@ async function handleOptimizeEnergy(c: Context) {
     // 4. Return flat challenge response contract preserving all 24 hourly entries
     return c.json(
       {
-        scenario_id: result.scenario_id,
         directive_interpretation: result.directive_interpretation,
         hourly_plan: result.hourly_plan,
-        total_grid_kwh: result.total_grid_kwh,
-        total_cost_bdt: result.total_cost_bdt,
         peak_grid_kwh: result.peak_grid_kwh,
         plan_summary: result.plan_summary,
+        scenario_id: result.scenario_id,
+        total_cost_bdt: result.total_cost_bdt,
+        total_grid_kwh: result.total_grid_kwh,
       },
-      200,
+      200
     );
   } catch (err: unknown) {
     if (err instanceof EnergyAppError) {
       const pub = err.toPublicResponse();
-      return c.json(
-        { error: pub },
-        pub.status as 422 | 500,
-      );
+      return c.json({ error: pub }, pub.status as 422 | 500);
     }
 
     return c.json(
       {
         error: {
+          code: "INTERNAL_SERVER_ERROR",
           message: "Internal server error during energy optimization.",
           status: 500,
-          code: "INTERNAL_SERVER_ERROR",
         },
       },
-      500,
+      500
     );
   }
 }
